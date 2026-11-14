@@ -28,9 +28,10 @@ let selectedCount = 10;
 let selectedDifficulty = "basic";
 let limitTime = 10;
 let currentQuizMode = "choice";
-let currentQuizOrder = "random"; // 'random' | 'cover_all'
+let currentQuizOrder = "random"; // 'random' | 'cover_all' | 'srs' | 'bookmarks' | 'weak'
 let statsDisplayMode = "mastery"; // 'mastery' (/100語) | 'accuracy' (累計正答率)
 window.quizDirection = "en_ja";
+let currentPosFilter = "all"; // 'all' | '動詞' | '名詞' | '形容詞' | '副詞'
 
 let timerInterval = null;
 let autoNextInterval = null;
@@ -56,7 +57,13 @@ const KEYS = {
   THEME: "target1900_theme_v1",
   SCORE: "target1900_total_score",
   COVERED: "target1900_covered_pool_v1",
+  SRS_DATA: "target1900_srs_data_v1",
+  SRS_INTERVALS: "target1900_srs_intervals_v1",
+  BOOKMARKS: "target1900_bookmarks_v1",
+  STREAK: "target1900_streak_data_v1",
 };
+
+const DEFAULT_SRS_INTERVALS = [1, 3, 7, 14, 30];
 
 const DIFF_CONFIG = {
   basic: { label: "基礎", sub: "10秒", time: 10, mult: 1.0, activeCls: "bg-indigo-600 text-white border-indigo-600" },
@@ -99,6 +106,177 @@ function shuffleArray(arr) {
     [res[i], res[j]] = [res[j], res[i]];
   }
   return res;
+}
+
+// ===== ① ランク概要説明ポップアップ ＆ 追加UIの動的インジェクション =====
+function injectAdvancedUI() {
+  // ランクバッジの横に「？」ボタンを注入
+  const rankBadge = $("user-rank-badge");
+  if (rankBadge && !$("rank-info-btn")) {
+    const btn = document.createElement("button");
+    btn.id = "rank-info-btn";
+    btn.type = "button";
+    btn.onclick = openRankModal;
+    btn.className =
+      "w-5 h-5 ml-1.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-[10px] flex items-center justify-center hover:bg-indigo-600 hover:text-white transition cursor-pointer";
+    btn.innerHTML = '<i class="fa-solid fa-question"></i>';
+    rankBadge.insertAdjacentElement("afterend", btn);
+  }
+
+  // ホーム画面に SRS・My単語帳・苦手特訓ボタンエリアを注入
+  const reviewContainer = $("home-review-btn-container");
+  if (reviewContainer && !$("advanced-modes-grid")) {
+    const wrapper = document.createElement("div");
+    wrapper.id = "advanced-modes-grid";
+    wrapper.className = "space-y-2 mb-3";
+    reviewContainer.insertAdjacentElement("beforebegin", wrapper);
+  }
+  renderAdvancedHomeUI();
+
+  // モーダル群（ランク詳細、SRS間隔設定、JSONバックアップ）のHTMLをbody末尾に注入
+  if (!$("global-modals-container")) {
+    const modContainer = document.createElement("div");
+    modContainer.id = "global-modals-container";
+    modContainer.innerHTML = `
+      <!-- RANK INFO MODAL (①) -->
+      <div id="rank-info-modal" onclick="if(event.target===this) closeRankModal()" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-5 shadow-2xl relative max-h-[85vh] flex flex-col">
+          <button type="button" onclick="closeRankModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center cursor-pointer">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+          <div class="text-center mb-3 shrink-0">
+            <div class="w-11 h-11 bg-indigo-100 dark:bg-indigo-950/70 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-1 text-lg">
+              <i class="fa-solid fa-crown"></i>
+            </div>
+            <h3 class="text-base font-black">ランク＆ポイント仕様</h3>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">正解スピード・連続コンボ・難易度倍率に応じて獲得ptが変動します</p>
+          </div>
+          <div id="rank-modal-list" class="space-y-2 overflow-y-auto pr-1 flex-1 mb-3"></div>
+          <button type="button" onclick="closeRankModal()" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs shadow-sm transition cursor-pointer shrink-0">閉じる</button>
+        </div>
+      </div>
+
+      <!-- SRS SETTINGS MODAL (②) -->
+      <div id="srs-settings-modal" onclick="if(event.target===this) closeSrsSettingsModal()" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-sm w-full p-5 shadow-2xl relative">
+          <button type="button" onclick="closeSrsSettingsModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center cursor-pointer">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+          <div class="text-center mb-4">
+            <div class="w-11 h-11 bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-1.5 text-lg">
+              <i class="fa-solid fa-calendar-check"></i>
+            </div>
+            <h3 class="text-base font-black">忘却曲線（SRS）間隔設定</h3>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">連続正解したときの次回復習までの日数を設定します</p>
+          </div>
+          <div class="mb-3">
+            <label class="block text-[11px] font-bold text-slate-500 mb-1.5">おすすめプリセット</label>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button type="button" onclick="applySrsPreset('1, 3, 7, 14, 30')" class="py-1.5 px-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 text-[11px] font-bold transition cursor-pointer">標準<br><span class="text-[9px] text-slate-400">1→3→7→14→30</span></button>
+              <button type="button" onclick="applySrsPreset('1, 2, 4, 7, 14')" class="py-1.5 px-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 text-[11px] font-bold transition cursor-pointer">短期<br><span class="text-[9px] text-slate-400">1→2→4→7→14</span></button>
+              <button type="button" onclick="applySrsPreset('1, 4, 10, 25, 60')" class="py-1.5 px-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 text-[11px] font-bold transition cursor-pointer">長期<br><span class="text-[9px] text-slate-400">1→4→10→25→60</span></button>
+            </div>
+          </div>
+          <div class="mb-4">
+            <label for="srs-intervals-input" class="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">カスタム日数（半角カンマ区切り）</label>
+            <input id="srs-intervals-input" type="text" placeholder="例: 1, 3, 7, 14, 30" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold focus:outline-none focus:border-emerald-500" />
+            <p class="text-[10px] text-slate-400 mt-1">※間違えた単語はステージ0（当日中に再復習）に戻ります。</p>
+          </div>
+          <button type="button" onclick="saveSrsSettings()" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-sm transition cursor-pointer">この間隔で保存する</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modContainer);
+  }
+
+  // 設定エリア付近に「JSONバックアップ(⑤)」と「品詞フィルタ(⑥)」を追加
+  const startCard = $("start-screen");
+  if (startCard && !$("backup-tools-bar")) {
+    const toolBar = document.createElement("div");
+    toolBar.id = "backup-tools-bar";
+    toolBar.className = "flex items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-200/60 dark:border-slate-800";
+    toolBar.innerHTML = `
+      <div class="flex items-center gap-1.5">
+        <button type="button" onclick="exportUserDataJSON()" class="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-bold transition cursor-pointer flex items-center gap-1" title="学習データをファイルに保存">
+          <i class="fa-solid fa-download text-indigo-500"></i><span>データ保存</span>
+        </button>
+        <label class="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-bold transition cursor-pointer flex items-center gap-1" title="ファイルから学習データを復元">
+          <i class="fa-solid fa-upload text-emerald-500"></i><span>復元</span>
+          <input type="file" accept=".json" onchange="importUserDataJSON(event)" class="hidden" />
+        </label>
+      </div>
+      <div class="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+        <i class="fa-solid fa-shield-halved text-indigo-500"></i> 完全ローカル・同期対応
+      </div>
+    `;
+    // クイズ開始ボタンの直前に挿入
+    const startBtn = startCard.querySelector("button[onclick*=\"startQuiz('normal')\"]");
+    if (startBtn) startBtn.insertAdjacentElement("beforebegin", toolBar);
+  }
+
+  // 品詞フィルタ(⑥)をホーム画面の出題範囲付近に挿入
+  const rangeCard = $("range-start")?.closest(".config-card");
+  if (rangeCard && !$("pos-filter-container")) {
+    const posDiv = document.createElement("div");
+    posDiv.id = "pos-filter-container";
+    posDiv.className = "mt-2 pt-2 border-t border-slate-100 dark:border-slate-800";
+    posDiv.innerHTML = `
+      <div class="flex items-center justify-between mb-1">
+        <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1"><i class="fa-solid fa-filter text-indigo-500"></i>品詞絞り込み</label>
+        <span id="pos-filter-label" class="text-[10px] font-black text-indigo-600 dark:text-indigo-400">すべて</span>
+      </div>
+      <div class="grid grid-cols-5 gap-1">
+        <button type="button" onclick="setPosFilter('all')" id="pos-btn-all" class="py-1 rounded-lg bg-indigo-600 text-white text-[10px] font-bold transition cursor-pointer">全品詞</button>
+        <button type="button" onclick="setPosFilter('動詞')" id="pos-btn-動詞" class="py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold transition cursor-pointer">動詞</button>
+        <button type="button" onclick="setPosFilter('名詞')" id="pos-btn-名詞" class="py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold transition cursor-pointer">名詞</button>
+        <button type="button" onclick="setPosFilter('形容詞')" id="pos-btn-形容詞" class="py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold transition cursor-pointer">形容詞</button>
+        <button type="button" onclick="setPosFilter('副詞')" id="pos-btn-副詞" class="py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold transition cursor-pointer">副詞</button>
+      </div>
+    `;
+    rangeCard.appendChild(posDiv);
+  }
+}
+
+// ランク概要モーダル制御
+function openRankModal() {
+  const totalScore = parseInt(localStorage.getItem(KEYS.SCORE), 10) || 0;
+  const listEl = $("rank-modal-list");
+  if (listEl) {
+    listEl.innerHTML = RANK_LIST.map((r, idx) => {
+      const nextR = RANK_LIST[idx - 1];
+      const rangeStr = nextR ? `${r.min.toLocaleString()} 〜 ${(nextR.min - 1).toLocaleString()} pt` : `${r.min.toLocaleString()} pt 以上`;
+      const isCurrent = totalScore >= r.min && (!nextR || totalScore < nextR.min);
+      return `
+        <div class="p-3 rounded-2xl border ${isCurrent ? "border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40" : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50"} flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-1 rounded-full text-xs border ${r.color}"><i class="fa-solid fa-crown text-[10px] mr-1"></i>${r.name}</span>
+            ${isCurrent ? '<span class="text-[10px] font-black bg-indigo-600 text-white px-2 py-0.5 rounded-full">現在のランク</span>' : ""}
+          </div>
+          <span class="text-xs font-black text-slate-600 dark:text-slate-300">${rangeStr}</span>
+        </div>`;
+    }).join("");
+  }
+  $("rank-info-modal")?.classList.remove("hidden");
+}
+
+function closeRankModal() {
+  $("rank-info-modal")?.classList.add("hidden");
+}
+
+// 品詞フィルタ設定 (⑥)
+function setPosFilter(pos) {
+  currentPosFilter = pos;
+  ["all", "動詞", "名詞", "形容詞", "副詞"].forEach((p) => {
+    const btn = $(`pos-btn-${p}`);
+    if (btn) {
+      if (p === pos) {
+        btn.className = "py-1 rounded-lg bg-indigo-600 text-white text-[10px] font-bold transition cursor-pointer";
+      } else {
+        btn.className = "py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold transition cursor-pointer";
+      }
+    }
+  });
+  if ($("pos-filter-label")) $("pos-filter-label").innerText = pos === "all" ? "すべて" : pos;
 }
 
 // ===== Firebase 認証＆クラウド同期 =====
@@ -202,6 +380,10 @@ async function pushLocalDataToCloud() {
       stats: getStorageJSON(KEYS.STATS, {}),
       history: getStorageJSON(KEYS.HISTORY, {}),
       covered: getStorageJSON(KEYS.COVERED, {}),
+      srsData: getStorageJSON(KEYS.SRS_DATA, {}),
+      srsIntervals: localStorage.getItem(KEYS.SRS_INTERVALS) || "",
+      bookmarks: getStorageJSON(KEYS.BOOKMARKS, []),
+      streak: getStorageJSON(KEYS.STREAK, { count: 0, lastDate: "", todayCount: 0 }),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     };
     await db.collection("users").doc(currentUser.uid).set(payload, { merge: true });
@@ -225,6 +407,9 @@ async function syncWithCloudOnLogin(user) {
     const localStats = getStorageJSON(KEYS.STATS, {});
     const localHistory = getStorageJSON(KEYS.HISTORY, {});
     const localCovered = getStorageJSON(KEYS.COVERED, {});
+    const localSrs = getStorageJSON(KEYS.SRS_DATA, {});
+    const localBookmarks = getStorageJSON(KEYS.BOOKMARKS, []);
+    const localStreak = getStorageJSON(KEYS.STREAK, { count: 0, lastDate: "", todayCount: 0 });
 
     if (snap.exists) {
       const cloud = snap.data();
@@ -232,8 +417,7 @@ async function syncWithCloudOnLogin(user) {
       const mergedScore = Math.max(localScore, Number(cloud.score) || 0);
       localStorage.setItem(KEYS.SCORE, mergedScore);
 
-      const cloudMastered = Array.isArray(cloud.mastered) ? cloud.mastered : [];
-      const mergedMastered = Array.from(new Set([...(Array.isArray(localMastered) ? localMastered : []), ...cloudMastered]));
+      const mergedMastered = Array.from(new Set([...(Array.isArray(localMastered) ? localMastered : []), ...(Array.isArray(cloud.mastered) ? cloud.mastered : [])]));
       setStorageJSON(KEYS.MASTERED, mergedMastered);
 
       const cloudStats = cloud.stats || {};
@@ -259,11 +443,25 @@ async function syncWithCloudOnLogin(user) {
         mergedCovered[rk] = Array.from(new Set([...(mergedCovered[rk] || []), ...(localCovered[rk] || [])]));
       });
       setStorageJSON(KEYS.COVERED, mergedCovered);
+
+      const mergedSrs = { ...(cloud.srsData || {}), ...localSrs };
+      setStorageJSON(KEYS.SRS_DATA, mergedSrs);
+
+      if (cloud.srsIntervals && !localStorage.getItem(KEYS.SRS_INTERVALS)) {
+        localStorage.setItem(KEYS.SRS_INTERVALS, cloud.srsIntervals);
+      }
+
+      const mergedBookmarks = Array.from(new Set([...(Array.isArray(localBookmarks) ? localBookmarks : []), ...(Array.isArray(cloud.bookmarks) ? cloud.bookmarks : [])]));
+      setStorageJSON(KEYS.BOOKMARKS, mergedBookmarks);
+
+      const cloudStreak = cloud.streak || { count: 0, lastDate: "", todayCount: 0 };
+      const chosenStreak = (cloudStreak.count || 0) >= (localStreak.count || 0) ? cloudStreak : localStreak;
+      setStorageJSON(KEYS.STREAK, chosenStreak);
     }
 
     await pushLocalDataToCloud();
     updateRankUI();
-    renderReviewButtons();
+    renderAdvancedHomeUI();
     renderStatsGraph();
     updateOrderProgressBadge();
   } catch (e) {
@@ -284,7 +482,7 @@ if (auth) {
   });
 }
 
-// ===== 範囲取得＆フィルタリング =====
+// ===== 範囲取得＆フィルタリング＆品詞フィルタ =====
 function getNormalizedRange() {
   const maxAvailable = getAllWords().length > 0 ? Math.max(...getAllWords().map((w) => Number(w.no) || 0)) : 1500;
   let start = parseInt($("range-start")?.value, 10);
@@ -309,7 +507,12 @@ function onRangeInputChange() {
 function filterWordsByRange(words, start, end) {
   return words.filter((w, idx) => {
     const no = w.no !== undefined ? Number(w.no) : idx + 1;
-    return no >= start && no <= end;
+    if (no < start || no > end) return false;
+    if (currentPosFilter !== "all") {
+      const pos = String(w.pos || "");
+      if (!pos.includes(currentPosFilter)) return false;
+    }
+    return true;
   });
 }
 
@@ -338,8 +541,8 @@ function updateOrderProgressBadge() {
   const { start, end } = getNormalizedRange();
   const rangeWords = filterWordsByRange(getAllWords(), start, end);
   const coveredMap = getStorageJSON(KEYS.COVERED, {});
-  const rangeKey = `${start}-${end}`;
-  const usedSet = new Set([...(coveredMap[rangeKey] || []), ...(coveredMap[`${rangeKey}-tenfu7`] || []), ...(coveredMap[`${rangeKey}-tenfuUnder`] || []), ...(coveredMap[`${rangeKey}-kiwami`] || [])]);
+  const rangeKey = `${start}-${end}-${currentPosFilter}`;
+  const usedSet = new Set(coveredMap[rangeKey] || []);
   const doneCount = rangeWords.filter((w) => usedSet.has(w.no)).length;
 
   badge.innerText = `進捗: ${doneCount} / ${rangeWords.length}語`;
@@ -349,14 +552,11 @@ function updateOrderProgressBadge() {
 
 function resetCoveredProgress() {
   const { start, end } = getNormalizedRange();
-  if (!confirm(`No.${start}〜${end} の「範囲内を網羅(1周)」の進捗をリセットして最初から出題しますか？`)) return;
+  if (!confirm(`No.${start}〜${end} (${currentPosFilter}) の「範囲内を網羅(1周)」の進捗をリセットして最初から出題しますか？`)) return;
 
   const coveredMap = getStorageJSON(KEYS.COVERED, {});
-  const rangeKey = `${start}-${end}`;
+  const rangeKey = `${start}-${end}-${currentPosFilter}`;
   delete coveredMap[rangeKey];
-  delete coveredMap[`${rangeKey}-tenfu7`];
-  delete coveredMap[`${rangeKey}-tenfuUnder`];
-  delete coveredMap[`${rangeKey}-kiwami`];
 
   setStorageJSON(KEYS.COVERED, coveredMap);
   updateOrderProgressBadge();
@@ -389,6 +589,327 @@ function pickQuestionsCoverAll(pool, count, rangeKey) {
   updateOrderProgressBadge();
   scheduleCloudPush();
   return picked;
+}
+
+// ===== ② 分散学習 (SRS) ロジック =====
+function getSrsIntervals() {
+  const saved = localStorage.getItem(KEYS.SRS_INTERVALS);
+  if (!saved) return DEFAULT_SRS_INTERVALS;
+  const parsed = saved
+    .split(",")
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => !Number.isNaN(n) && n >= 1);
+  return parsed.length > 0 ? parsed : DEFAULT_SRS_INTERVALS;
+}
+
+function updateWordSrs(wordNo, isCorrect) {
+  const srsMap = getStorageJSON(KEYS.SRS_DATA, {});
+  const key = String(wordNo);
+  const current = srsMap[key] || { stage: 0, nextReview: 0 };
+  const intervals = getSrsIntervals();
+  const now = Date.now();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  if (isCorrect) {
+    const nextStage = Math.min(current.stage + 1, intervals.length);
+    const daysToAdd = intervals[nextStage - 1];
+    srsMap[key] = {
+      stage: nextStage,
+      nextReview: now + daysToAdd * DAY_MS,
+      updatedAt: now,
+    };
+  } else {
+    srsMap[key] = {
+      stage: 0,
+      nextReview: now, // 即時復習対象
+      updatedAt: now,
+    };
+  }
+  setStorageJSON(KEYS.SRS_DATA, srsMap);
+  scheduleCloudPush();
+}
+
+function getDueSrsWords() {
+  const srsMap = getStorageJSON(KEYS.SRS_DATA, {});
+  const now = Date.now();
+  const dueNos = new Set(
+    Object.entries(srsMap)
+      .filter(([, info]) => info && info.nextReview <= now)
+      .map(([no]) => Number(no)),
+  );
+  return getAllWords().filter((w) => dueNos.has(Number(w.no)));
+}
+
+function openSrsSettingsModal() {
+  const input = $("srs-intervals-input");
+  if (input) input.value = getSrsIntervals().join(", ");
+  $("srs-settings-modal")?.classList.remove("hidden");
+}
+
+function closeSrsSettingsModal() {
+  $("srs-settings-modal")?.classList.add("hidden");
+}
+
+function applySrsPreset(presetStr) {
+  const input = $("srs-intervals-input");
+  if (input) input.value = presetStr;
+}
+
+function saveSrsSettings() {
+  const input = $("srs-intervals-input");
+  if (!input) return;
+  const parsed = input.value
+    .split(",")
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => !Number.isNaN(n) && n >= 1);
+  if (parsed.length === 0) {
+    alert("1以上の半角数字をカンマ区切りで入力してください（例: 1, 3, 7, 14, 30）");
+    return;
+  }
+  localStorage.setItem(KEYS.SRS_INTERVALS, parsed.join(", "));
+  closeSrsSettingsModal();
+  renderAdvancedHomeUI();
+}
+
+// ===== ④ ストリーク（連続学習日数）＆ My単語帳 ＆ 苦手抽出 =====
+function checkAndUpdateStreak() {
+  const streakData = getStorageJSON(KEYS.STREAK, { count: 0, lastDate: "", todayCount: 0 });
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  if (streakData.lastDate !== todayStr) {
+    const lastD = new Date(streakData.lastDate);
+    const currD = new Date(todayStr);
+    const diffDays = Math.round((currD - lastD) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 1) {
+      // 継続
+    } else if (diffDays > 1) {
+      streakData.count = 0; // 途切れ
+    }
+    streakData.todayCount = 0;
+  }
+}
+
+function addStreakProgress(solvedCount) {
+  const streakData = getStorageJSON(KEYS.STREAK, { count: 0, lastDate: "", todayCount: 0 });
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  if (streakData.lastDate !== todayStr) {
+    const lastD = streakData.lastDate ? new Date(streakData.lastDate) : null;
+    const currD = new Date(todayStr);
+    if (!lastD || Math.round((currD - lastD) / (1000 * 60 * 60 * 24)) === 1) {
+      streakData.count = (streakData.count || 0) + 1;
+    } else if (Math.round((currD - lastD) / (1000 * 60 * 60 * 24)) > 1) {
+      streakData.count = 1;
+    } else if (!streakData.lastDate) {
+      streakData.count = 1;
+    }
+    streakData.todayCount = 0;
+    streakData.lastDate = todayStr;
+  }
+
+  const prevToday = streakData.todayCount || 0;
+  streakData.todayCount = prevToday + solvedCount;
+  setStorageJSON(KEYS.STREAK, streakData);
+  scheduleCloudPush();
+  renderAdvancedHomeUI();
+}
+
+function getBookmarks() {
+  return getStorageJSON(KEYS.BOOKMARKS, []);
+}
+
+function toggleBookmark(wordNo) {
+  const list = getBookmarks();
+  const set = new Set(list.map(Number));
+  const no = Number(wordNo);
+  if (set.has(no)) {
+    set.delete(no);
+  } else {
+    set.add(no);
+  }
+  setStorageJSON(KEYS.BOOKMARKS, Array.from(set));
+  scheduleCloudPush();
+  // UI上の星アイコン更新
+  const btn = document.querySelector(`button[data-bookmark-no="${no}"]`);
+  if (btn) {
+    const isSaved = set.has(no);
+    btn.className = `w-8 h-8 rounded-xl flex items-center justify-center transition cursor-pointer ${isSaved ? "bg-amber-100 dark:bg-amber-950/80 text-amber-500" : "bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-amber-500"}`;
+    btn.innerHTML = `<i class="fa-${isSaved ? "solid" : "regular"} fa-star text-xs"></i>`;
+  }
+}
+
+// 苦手抽出ロジック
+function getWeakWordsTop() {
+  const map = getStorageJSON(KEYS.HISTORY, {});
+  const list = Object.values(map)
+    .sort((a, b) => (b.mistakeCount || 0) - (a.mistakeCount || 0))
+    .map((item) => item.wordObj)
+    .filter(Boolean);
+  return list;
+}
+
+// ===== ⑤ 学習データの JSON バックアップ（書き出し・復元） =====
+function exportUserDataJSON() {
+  const backup = {
+    version: "8.0",
+    exportedAt: new Date().toISOString(),
+    score: localStorage.getItem(KEYS.SCORE) || "0",
+    stats: getStorageJSON(KEYS.STATS, {}),
+    mastered: getStorageJSON(KEYS.MASTERED, []),
+    history: getStorageJSON(KEYS.HISTORY, {}),
+    covered: getStorageJSON(KEYS.COVERED, {}),
+    srsData: getStorageJSON(KEYS.SRS_DATA, {}),
+    srsIntervals: localStorage.getItem(KEYS.SRS_INTERVALS) || "",
+    bookmarks: getStorageJSON(KEYS.BOOKMARKS, []),
+    streak: getStorageJSON(KEYS.STREAK, {}),
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `target1900_backup_${new Date().toISOString().split("T")[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importUserDataJSON(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    try {
+      const data = JSON.parse(event.target.result);
+      if (!data.version) throw new Error("無効なフォーマットです");
+      if (data.score) localStorage.setItem(KEYS.SCORE, data.score);
+      if (data.stats) setStorageJSON(KEYS.STATS, data.stats);
+      if (data.mastered) setStorageJSON(KEYS.MASTERED, data.mastered);
+      if (data.history) setStorageJSON(KEYS.HISTORY, data.history);
+      if (data.covered) setStorageJSON(KEYS.COVERED, data.covered);
+      if (data.srsData) setStorageJSON(KEYS.SRS_DATA, data.srsData);
+      if (data.srsIntervals) localStorage.setItem(KEYS.SRS_INTERVALS, data.srsIntervals);
+      if (data.bookmarks) setStorageJSON(KEYS.BOOKMARKS, data.bookmarks);
+      if (data.streak) setStorageJSON(KEYS.STREAK, data.streak);
+
+      alert("学習データの復元が完了しました！");
+      updateRankUI();
+      renderAdvancedHomeUI();
+      renderStatsGraph();
+      updateOrderProgressBadge();
+      scheduleCloudPush();
+    } catch (err) {
+      alert(`復元に失敗しました: ${err.message}`);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ===== ホーム画面拡張UIの描画 =====
+function renderAdvancedHomeUI() {
+  const grid = $("advanced-modes-grid");
+  if (!grid) return;
+
+  const dueCount = getDueSrsWords().length;
+  const streakData = getStorageJSON(KEYS.STREAK, { count: 0, todayCount: 0 });
+  const streakCount = streakData.count || 0;
+  const todayProgress = streakData.todayCount || 0;
+  const bookmarkCount = getBookmarks().length;
+  const weakCount = getWeakWordsTop().length;
+
+  grid.innerHTML = `
+    <!-- ストリーク＆今日のノルマバッジ -->
+    <div class="bg-white/90 dark:bg-slate-800/90 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-xs flex items-center justify-between text-xs font-bold">
+      <div class="flex items-center gap-2">
+        <span class="px-2.5 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center gap-1 font-black">
+          <i class="fa-solid fa-fire text-amber-500"></i> ${streakCount}日 連続学習
+        </span>
+        <span class="text-[11px] text-slate-500 dark:text-slate-400">本日のノルマ: <strong class="${todayProgress >= 30 ? "text-emerald-500" : "text-indigo-600 dark:text-indigo-400"}">${todayProgress}</strong> / 30問</span>
+      </div>
+      <div class="w-20 bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+        <div class="bg-emerald-500 h-full transition-all duration-500" style="width: ${Math.min(100, (todayProgress / 30) * 100)}%"></div>
+      </div>
+    </div>
+
+    <!-- 特殊モード＆分散学習ボタン群 -->
+    <div class="grid grid-cols-3 gap-1.5">
+      <button type="button" onclick="startSpecialQuiz('srs')" class="py-2 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex flex-col items-center justify-center gap-0.5 shadow-xs transition cursor-pointer">
+        <div class="flex items-center gap-1"><i class="fa-solid fa-brain"></i><span>本日の復習</span></div>
+        <span class="text-[9px] bg-white/20 px-2 py-0.2 rounded-full">${dueCount}語 期限</span>
+      </button>
+
+      <button type="button" onclick="startSpecialQuiz('bookmarks')" class="py-2 px-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs flex flex-col items-center justify-center gap-0.5 shadow-xs transition cursor-pointer">
+        <div class="flex items-center gap-1"><i class="fa-solid fa-star"></i><span>My単語帳</span></div>
+        <span class="text-[9px] bg-white/20 px-2 py-0.2 rounded-full">${bookmarkCount}語 登録</span>
+      </button>
+
+      <button type="button" onclick="startSpecialQuiz('weak')" class="py-2 px-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs flex flex-col items-center justify-center gap-0.5 shadow-xs transition cursor-pointer">
+        <div class="flex items-center gap-1"><i class="fa-solid fa-fire-flame-curved"></i><span>苦手特訓</span></div>
+        <span class="text-[9px] bg-white/20 px-2 py-0.2 rounded-full">${weakCount}語 候補</span>
+      </button>
+    </div>
+
+    <!-- SRS間隔変更ボタン行 -->
+    <div class="flex justify-end">
+      <button type="button" onclick="openSrsSettingsModal()" class="text-[10px] font-bold text-slate-400 hover:text-indigo-600 flex items-center gap-1 transition cursor-pointer">
+        <i class="fa-solid fa-sliders"></i> SRS復習間隔をカスタム
+      </button>
+    </div>
+  `;
+}
+
+function startSpecialQuiz(type) {
+  unlockAudio();
+  if (type === "srs") {
+    const dueWords = getDueSrsWords();
+    if (dueWords.length === 0) {
+      alert("現在、復習期限が来ている単語はありません！");
+      return;
+    }
+    quizQuestions = shuffleArray(dueWords).slice(0, selectedCount);
+    currentQuizOrder = "srs";
+  } else if (type === "bookmarks") {
+    const bookNos = new Set(getBookmarks());
+    const words = getAllWords().filter((w) => bookNos.has(Number(w.no)));
+    if (words.length === 0) {
+      alert("My単語帳に登録されている単語がありません。クイズ中に星マークを押して登録してください。");
+      return;
+    }
+    quizQuestions = shuffleArray(words).slice(0, selectedCount);
+    currentQuizOrder = "bookmarks";
+  } else if (type === "weak") {
+    const weak = getWeakWordsTop();
+    if (weak.length === 0) {
+      alert("現在、苦手な単語の記録はありません。");
+      return;
+    }
+    quizQuestions = shuffleArray(weak).slice(0, selectedCount);
+    currentQuizOrder = "weak";
+  }
+
+  // クイズ画面へ移行
+  setupQuizEnvironment();
+}
+
+function setupQuizEnvironment() {
+  clearInterval(timerInterval);
+  clearInterval(autoNextInterval);
+  sessionGainedScore = 0;
+  isPaused = false;
+  currentQuizTimeLeft = 0;
+  autoNextWaitLeft = 0;
+  currentCombo = 0;
+  maxCombo = 0;
+  answerHistory = [];
+  scoreCount = 0;
+  currentIndex = 0;
+  if ($("pause-overlay")) $("pause-overlay").style.display = "none";
+
+  $("start-screen")?.classList.add("hidden");
+  $("result-screen")?.classList.add("hidden");
+  $("analytics-section")?.classList.add("hidden");
+  $("quiz-screen")?.classList.remove("hidden");
+
+  showQuestion();
 }
 
 // ===== UI設定・切り替え =====
@@ -552,7 +1073,6 @@ function getMistakeList() {
 window.resetMistakeData = function () {
   if (!confirm("弱点単語の記録をリセットしてもよろしいですか？")) return;
   localStorage.removeItem(KEYS.HISTORY);
-  localStorage.removeItem("mistakeHistoryMap");
   renderReviewButtons();
   scheduleCloudPush();
 };
@@ -624,6 +1144,7 @@ function resetStatsData() {
   }
 }
 
+// ===== ③ 累計正答率・習得率の範囲表示順バグ修正 (数値昇順ソート) =====
 function renderStatsGraph() {
   const container = $("stats-graph-container");
   if (!container) return;
@@ -638,12 +1159,18 @@ function renderStatsGraph() {
     let hasAny = false;
     const htmlList = [];
 
+    // ブロック番号の若い順（1〜100, 101〜200...）に数値ソートして描画
+    const blocks = [];
     for (let i = 0; i < blockCount; i++) {
       const start = i * 100 + 1;
       const end = (i + 1) * 100;
       const displayEnd = Math.min(end, maxNo);
-      const denominator = displayEnd - start + 1;
+      blocks.push({ start, end: displayEnd });
+    }
+    blocks.sort((a, b) => a.start - b.start);
 
+    blocks.forEach(({ start, end: displayEnd }) => {
+      const denominator = displayEnd - start + 1;
       let masteredCount = 0;
       for (let n = start; n <= displayEnd; n++) {
         if (masteredSet.has(n)) masteredCount++;
@@ -663,12 +1190,17 @@ function renderStatsGraph() {
             <div class="${barColor} h-full transition-all duration-500" style="width: ${rate}%"></div>
           </div>
         </div>`);
-    }
+    });
 
     container.innerHTML = hasAny ? htmlList.join("") : `<div class="text-center text-xs text-slate-400 py-2 font-bold">クイズに正解すると100語ごとの習得率がここに表示されます</div>`;
   } else {
     const stats = getStorageJSON(KEYS.STATS, {});
-    const keys = Object.keys(stats).sort((a, b) => parseInt(a.split("-")[0], 10) - parseInt(b.split("-")[0], 10));
+    // キー文字列（"1-100", "101-200" 等）の開始数値をパースして厳密に数値昇順ソート
+    const keys = Object.keys(stats).sort((a, b) => {
+      const numA = parseInt(a.split("-")[0], 10) || 0;
+      const numB = parseInt(b.split("-")[0], 10) || 0;
+      return numA - numB;
+    });
 
     if (keys.length === 0) {
       container.innerHTML = `<div class="text-center text-xs text-slate-400 py-2 font-bold">クイズを解くと範囲ごとの累計正答率がここに表示されます</div>`;
@@ -749,7 +1281,7 @@ function startQuiz(mode) {
   if ($("pause-overlay")) $("pause-overlay").style.display = "none";
 
   const { start, end } = getNormalizedRange();
-  const rangeKey = `${start}-${end}`;
+  const rangeKey = `${start}-${end}-${currentPosFilter}`;
 
   if (mode === "session_review") {
     if (currentSessionWrong.length === 0) {
@@ -788,14 +1320,14 @@ function startQuiz(mode) {
     } else if (selectedDifficulty === "kiwami") {
       const kiwamiPool = filtered.filter((w) => getWordStr(w).length >= 8);
       if (kiwamiPool.length === 0) {
-        alert(`選択範囲(No.${start}〜${end})に8文字以上の単語がありません。範囲を広げてください。`);
+        alert(`選択範囲(No.${start}〜${end})に8文字以上の単語がありません。範囲を広げるか品詞設定を確認してください。`);
         return;
       }
       quizQuestions =
         currentQuizOrder === "cover_all" ? pickQuestionsCoverAll(kiwamiPool, selectedCount, `${rangeKey}-kiwami`) : shuffleArray(kiwamiPool).slice(0, Math.min(selectedCount, kiwamiPool.length));
     } else {
       if (filtered.length === 0) {
-        alert(`選択範囲(No.${start}〜${end})に単語がありません。`);
+        alert(`選択範囲(No.${start}〜${end})に条件に一致する単語がありません。`);
         return;
       }
       quizQuestions = currentQuizOrder === "cover_all" ? pickQuestionsCoverAll(filtered, selectedCount, rangeKey) : shuffleArray(filtered).slice(0, Math.min(selectedCount, filtered.length));
@@ -824,6 +1356,23 @@ function showQuestion() {
   if ($("progress-bar")) $("progress-bar").style.width = `${(currentIndex / quizQuestions.length) * 100}%`;
   if ($("word-no")) $("word-no").innerText = `No. ${wordNoVal}`;
   if ($("word-pos")) $("word-pos").innerText = q.pos || "";
+
+  // My単語帳スターボタンの動的配置・状態更新
+  let starBtn = $("word-bookmark-btn");
+  const wordNoNum = Number(wordNoVal);
+  const isBookmarked = getBookmarks().includes(wordNoNum);
+  if (!starBtn && $("word-no")?.parentElement) {
+    starBtn = document.createElement("button");
+    starBtn.id = "word-bookmark-btn";
+    starBtn.type = "button";
+    starBtn.onclick = () => toggleBookmark(wordNoNum);
+    $("word-no").insertAdjacentElement("afterend", starBtn);
+  }
+  if (starBtn) {
+    starBtn.setAttribute("data-bookmark-no", wordNoNum);
+    starBtn.className = `w-7 h-7 rounded-xl flex items-center justify-center transition cursor-pointer shrink-0 ${isBookmarked ? "bg-amber-100 dark:bg-amber-950/80 text-amber-500" : "bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-amber-500"}`;
+    starBtn.innerHTML = `<i class="fa-${isBookmarked ? "solid" : "regular"} fa-star text-xs"></i>`;
+  }
 
   const mistakeInfo = getMistakeHistoryMap()[wordNoVal];
   const badgeEl = $("word-level-badge");
@@ -867,7 +1416,6 @@ function showQuestion() {
         btn.innerHTML = `<span class="pr-2 leading-snug">${opt}</span><div class="w-5 h-5 shrink-0 rounded-full border-2 border-slate-200 dark:border-slate-600 flex items-center justify-center group-hover:border-indigo-400 transition-colors"><i class="fa-solid fa-check opacity-0 text-[10px]"></i></div>`;
 
         if (savedHistory) {
-          // 解答済みロック状態の復元
           btn.onclick = null;
           btn.classList.add("opacity-60", "cursor-not-allowed");
           if (opt === correctAnswer) {
@@ -933,7 +1481,6 @@ function showQuestion() {
   updateComboUI();
 
   if (savedHistory) {
-    // 解答済み問題：タイマー停止＆当時のフィードバック復元
     clearInterval(timerInterval);
     clearInterval(autoNextInterval);
     if ($("timer-sec")) $("timer-sec").innerText = "-";
@@ -1051,6 +1598,8 @@ function handleAnswer(isCorrect, selectedBtn, wordObj, isTimeUp = false, options
 
   recordAnswerStat(wordObj.no, isCorrect);
   recordMistakeMultiLevel(wordObj, isCorrect);
+  updateWordSrs(wordObj.no, isCorrect);
+  addStreakProgress(1); // ストリーク（ノルマ30問）に加算
 
   let feedbackText = "";
 
@@ -1094,7 +1643,6 @@ function handleAnswer(isCorrect, selectedBtn, wordObj, isTimeUp = false, options
     showFeedback(false, feedbackText, wordObj, true);
   }
 
-  // 解答済みロック用に履歴を保存
   answerHistory[currentIndex] = {
     isCorrect,
     wordObj,
@@ -1140,7 +1688,35 @@ function showFeedback(isSuccess, text, wordObj, animate = true) {
   }
 }
 
-// ===== ナビゲーション・画面遷移・リザルト誤答一覧 =====
+// ===== ④ PCキーボードショートカット対応 =====
+window.addEventListener("keydown", (e) => {
+  const quizScreen = $("quiz-screen");
+  if (!quizScreen || quizScreen.classList.contains("hidden") || isPaused) return;
+
+  // 4択モードでの 1〜4 キー回答
+  if (currentQuizMode === "choice" && !isAnswered) {
+    const key = e.key;
+    if (["1", "2", "3", "4"].includes(key)) {
+      const optionBtns = document.querySelectorAll(".option-btn");
+      const idx = parseInt(key, 10) - 1;
+      if (optionBtns[idx]) {
+        optionBtns[idx].click();
+        e.preventDefault();
+      }
+    }
+  }
+
+  // Enter キーで次へ進む（解答済みの場合）
+  if (e.key === "Enter" && isAnswered) {
+    const nextBtn = $("next-btn");
+    if (nextBtn && !nextBtn.disabled) {
+      nextQuestion();
+      e.preventDefault();
+    }
+  }
+});
+
+// ===== ナビゲーション・画面遷移・リザルト演出 (⑦) =====
 function prevQuestion() {
   if (currentIndex <= 0) return;
   clearInterval(timerInterval);
@@ -1237,6 +1813,79 @@ function renderResultWrongList() {
   `;
 }
 
+// ⑦ クイズ終了後の「あと○語で次のランク！」＆「今回のMVP単語」演出
+function renderResultGrowthAndMvp() {
+  const resultScreen = $("result-screen");
+  if (!resultScreen) return;
+
+  let container = $("result-growth-mvp-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "result-growth-mvp-container";
+    const commentEl = $("result-comment");
+    if (commentEl) {
+      commentEl.insertAdjacentElement("afterend", container);
+    } else {
+      resultScreen.appendChild(container);
+    }
+  }
+
+  const totalScore = parseInt(localStorage.getItem(KEYS.SCORE), 10) || 0;
+  const currentRank = RANK_LIST.find((r) => totalScore >= r.min) || RANK_LIST[RANK_LIST.length - 1];
+  const idx = RANK_LIST.findIndex((r) => r.name === currentRank.name);
+  const nextRank = RANK_LIST[idx - 1];
+
+  let nextInfoHtml = "";
+  if (nextRank) {
+    const diffPt = nextRank.min - totalScore;
+    const estQuestions = Math.ceil(diffPt / 15); // 平均獲得ptの目安
+    nextInfoHtml = `
+      <div class="bg-indigo-50/80 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-900 rounded-2xl p-3 mb-2 text-left">
+        <div class="flex justify-between text-xs font-bold text-indigo-700 dark:text-indigo-300 mb-1">
+          <span><i class="fa-solid fa-arrow-trend-up mr-1"></i> 次のランク [${nextRank.name}] まで</span>
+          <span>あと ${diffPt.toLocaleString()} pt</span>
+        </div>
+        <p class="text-[10px] text-slate-500 dark:text-slate-400">目安として全問正解であと約 ${estQuestions} セットのクリア！</p>
+      </div>`;
+  } else {
+    nextInfoHtml = `
+      <div class="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-900 rounded-2xl p-3 mb-2 text-center text-xs font-bold text-amber-600 dark:text-amber-400">
+        <i class="fa-solid fa-crown mr-1"></i> 最高ランク（レジェンド）到達中！
+      </div>`;
+  }
+
+  // 今回のMVP単語選出（今回正解した中で過去に一番ミス回数が多かった単語）
+  let mvpHtml = "";
+  const correctHistory = answerHistory.filter((h) => h && h.isCorrect);
+  if (correctHistory.length > 0) {
+    // 履歴の中でミスが多かったものをMVPに選ぶ
+    const sortedMvp = [...correctHistory].sort((a, b) => {
+      const map = getMistakeHistoryMap();
+      const countA = map[a.wordObj.no]?.mistakeCount || 0;
+      const countB = map[b.wordObj.no]?.mistakeCount || 0;
+      return countB - countA;
+    });
+    const mvpWord = sortedMvp[0]?.wordObj;
+    if (mvpWord) {
+      mvpHtml = `
+        <div class="bg-emerald-50/80 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900 rounded-2xl p-3 text-left">
+          <div class="flex items-center gap-1 text-xs font-extrabold text-emerald-700 dark:text-emerald-300 mb-1">
+            <i class="fa-solid fa-award"></i> 今回のMVP克服単語
+          </div>
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="text-xs font-black text-slate-800 dark:text-slate-100">${mvpWord.word}</span>
+              <span class="text-[10px] text-slate-500 ml-1">(${mvpWord.meaning})</span>
+            </div>
+            <span class="text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full">ナイス克服！</span>
+          </div>
+        </div>`;
+    }
+  }
+
+  container.innerHTML = nextInfoHtml + mvpHtml;
+}
+
 function showResult() {
   $("quiz-screen")?.classList.add("hidden");
   $("result-screen")?.classList.remove("hidden");
@@ -1265,7 +1914,9 @@ function showResult() {
   }
 
   renderResultWrongList();
+  renderResultGrowthAndMvp();
   renderReviewButtons();
+  renderAdvancedHomeUI();
   renderStatsGraph();
   updateRankUI();
   pushLocalDataToCloud();
@@ -1277,11 +1928,12 @@ function showStartScreen() {
   $("start-screen")?.classList.remove("hidden");
   $("analytics-section")?.classList.remove("hidden");
   renderReviewButtons();
+  renderAdvancedHomeUI();
   renderStatsGraph();
   updateOrderProgressBadge();
 }
 
-// ===== 初期化（難易度ボタン動的生成含む） =====
+// ===== 初期化（難易度ボタン動的生成＆拡張UIインジェクション） =====
 function initDifficultyButtons() {
   const keys = Object.keys(DIFF_CONFIG);
   if ($("home-diff-container")) {
@@ -1301,8 +1953,11 @@ function initDifficultyButtons() {
 window.onload = () => {
   initTheme();
   initDifficultyButtons();
+  injectAdvancedUI();
+  checkAndUpdateStreak();
   onRangeInputChange();
   renderReviewButtons();
+  renderAdvancedHomeUI();
   renderStatsGraph();
   updateRankUI();
 };
