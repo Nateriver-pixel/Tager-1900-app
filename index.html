@@ -185,6 +185,36 @@
               </div>
             </div>
             <input type="range" id="question-count-slider" min="10" max="200" value="10" step="10" oninput="syncCountFromSlider(this.value)" class="w-full accent-indigo-600 cursor-pointer my-1" />
+            <div class="grid grid-cols-4 gap-1 mt-1.5">
+              <button
+                type="button"
+                onclick="setQuickQuestionCount(10)"
+                class="quick-count-btn py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-600 dark:text-indigo-300 text-[10px] font-black transition cursor-pointer border border-indigo-200/60 dark:border-indigo-800"
+              >
+                10問
+              </button>
+              <button
+                type="button"
+                onclick="setQuickQuestionCount(20)"
+                class="quick-count-btn py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-[10px] font-black transition cursor-pointer border border-slate-200/60 dark:border-slate-700"
+              >
+                20問
+              </button>
+              <button
+                type="button"
+                onclick="setQuickQuestionCount(50)"
+                class="quick-count-btn py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-[10px] font-black transition cursor-pointer border border-slate-200/60 dark:border-slate-700"
+              >
+                50問
+              </button>
+              <button
+                type="button"
+                onclick="setQuickQuestionCount(100)"
+                class="quick-count-btn py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-[10px] font-black transition cursor-pointer border border-slate-200/60 dark:border-slate-700"
+              >
+                100問
+              </button>
+            </div>
           </div>
         </div>
 
@@ -318,7 +348,7 @@
                 <span>次へ</span><i class="fa-solid fa-chevron-right text-xs"></i>
               </button>
             </div>
-            <p id="word-kana" class="text-[11px] font-bold text-slate-400 tracking-wider">[ クリエイト ]</p>
+            <p id="word-kana" class="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider">[ クリエイト ]</p>
 
             <p id="typing-hint" class="hidden text-[11px] font-extrabold text-indigo-600 dark:text-indigo-400 mt-1.5 bg-indigo-50 dark:bg-indigo-950/80 inline-block px-2.5 py-0.5 rounded-md"></p>
           </div>

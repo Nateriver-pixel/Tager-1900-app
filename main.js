@@ -1195,10 +1195,13 @@ function renderStatsGraph() {
     container.innerHTML = hasAny ? htmlList.join("") : `<div class="text-center text-xs text-slate-400 py-2 font-bold">クイズに正解すると100語ごとの習得率がここに表示されます</div>`;
   } else {
     const stats = getStorageJSON(KEYS.STATS, {});
-    // キー文字列（"1-100", "101-200" 等）の開始数値をパースして厳密に数値昇順ソート
+
+    // "No." などの余計な文字を完全に排除し、確実に数値（開始番号）で昇順ソートする
     const keys = Object.keys(stats).sort((a, b) => {
-      const numA = parseInt(a.split("-")[0], 10) || 0;
-      const numB = parseInt(b.split("-")[0], 10) || 0;
+      const cleanA = a.replace(/[^0-9-]/g, "");
+      const cleanB = b.replace(/[^0-9-]/g, "");
+      const numA = parseInt(cleanA.split("-")[0], 10) || 0;
+      const numB = parseInt(cleanB.split("-")[0], 10) || 0;
       return numA - numB;
     });
 
@@ -1212,10 +1215,15 @@ function renderStatsGraph() {
         const s = stats[k];
         const rate = s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0;
         const barColor = rate >= 80 ? "bg-emerald-500" : rate >= 50 ? "bg-amber-500" : "bg-rose-500";
+
+        // クリーンな番号範囲文字列に整える（重複「No.No.」を絶対に防ぐ）
+        const cleanK = k.replace(/[^0-9-]/g, "");
+        const displayLabel = `No.${cleanK.replace("-", "〜")}`;
+
         return `
           <div class="text-[11px] font-bold">
             <div class="flex justify-between text-slate-600 dark:text-slate-400 mb-0.5">
-              <span>No.${k.replace("-", "〜")}</span>
+              <span>${displayLabel}</span>
               <span>${rate}% (${s.correct}/${s.total}回)</span>
             </div>
             <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
@@ -1949,7 +1957,33 @@ function initDifficultyButtons() {
   }
   setDifficulty(selectedDifficulty);
 }
+// ===== 出題数クイック選択機能 =====
+function setQuickQuestionCount(count) {
+  selectedCount = count;
 
+  // 入力欄とスライダーの値を同期
+  const inputEl = $("question-count-input");
+  const sliderEl = $("question-count-slider");
+  if (inputEl) inputEl.value = count;
+  if (sliderEl) sliderEl.value = Math.min(Math.max(count, sliderEl.min), sliderEl.max);
+
+  // リザルト画面側のスライダー表示もあれば同期
+  const resSlider = $("result-count-slider");
+  if (resSlider) resSlider.value = count;
+  if ($("result-count-display")) $("result-count-display").innerText = `${count}問`;
+
+  // ボタンの選択状態（見た目）を切り替え
+  document.querySelectorAll(".quick-count-btn").forEach((btn) => {
+    const btnText = btn.innerText.trim();
+    const isTarget = btnText === `${count}問`;
+    if (isTarget) {
+      btn.className = "quick-count-btn py-1 rounded-lg bg-indigo-600 text-white text-[10px] font-black transition cursor-pointer border border-indigo-600 shadow-xs";
+    } else {
+      btn.className =
+        "quick-count-btn py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-[10px] font-black transition cursor-pointer border border-slate-200/60 dark:border-slate-700";
+    }
+  });
+}
 window.onload = () => {
   initTheme();
   initDifficultyButtons();
@@ -1960,4 +1994,5 @@ window.onload = () => {
   renderAdvancedHomeUI();
   renderStatsGraph();
   updateRankUI();
+  setQuickQuestionCount(10);
 };
