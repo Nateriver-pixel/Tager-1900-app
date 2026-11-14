@@ -62,8 +62,8 @@ const DIFF_CONFIG = {
   basic: { label: "基礎", sub: "10秒", time: 10, mult: 1.0, activeCls: "bg-indigo-600 text-white border-indigo-600" },
   applied: { label: "応用", sub: "5秒", time: 5, mult: 1.2, activeCls: "bg-amber-500 text-white border-amber-500" },
   hard: { label: "発展", sub: "2秒", time: 2, mult: 1.5, activeCls: "bg-orange-600 text-white border-orange-600" },
-  tenfu: { label: "天賦", sub: "2秒･7字+", time: 2, mult: 2.0, activeCls: "bg-purple-600 text-white border-purple-600" },
-  kiwami: { label: "極", sub: "2秒･8字+", time: 2, mult: 3.0, activeCls: "bg-rose-600 text-white border-rose-600" },
+  tenfu: { label: "天賦", sub: "2秒･7文字以上優先", time: 2, mult: 2.0, activeCls: "bg-purple-600 text-white border-purple-600" },
+  kiwami: { label: "極", sub: "2秒･8文字以上のみ", time: 2, mult: 3.0, activeCls: "bg-rose-600 text-white border-rose-600" },
 };
 
 const RANK_LIST = [
