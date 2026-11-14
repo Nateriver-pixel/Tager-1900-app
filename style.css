@@ -156,3 +156,15 @@ html.dark .btn-secondary {
 html.dark .btn-secondary:hover {
   background-color: #334155;
 }
+.nav-step-btn {
+  flex: 1;
+  max-width: 140px;
+  font-weight: 800;
+  font-size: 0.8125rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}

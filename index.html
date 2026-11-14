@@ -259,23 +259,6 @@
               <i class="fa-solid fa-pause"></i> <span>中断</span>
             </button>
 
-            <div class="flex items-center gap-1.5">
-              <button
-                id="prev-btn"
-                onclick="prevQuestion()"
-                class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-35 text-slate-600 dark:text-slate-300 text-[11px] font-bold flex items-center gap-1 transition cursor-pointer"
-              >
-                <i class="fa-solid fa-chevron-left text-[10px]"></i><span>前へ</span>
-              </button>
-              <button
-                id="next-btn"
-                onclick="nextQuestion()"
-                class="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-300 text-[11px] font-bold flex items-center gap-1 transition cursor-pointer"
-              >
-                <span>次へ</span><i class="fa-solid fa-chevron-right text-[10px]"></i>
-              </button>
-            </div>
-
             <button onclick="forceQuit()" class="text-slate-500 dark:text-slate-400 hover:text-rose-600 font-bold text-xs flex items-center gap-1 transition cursor-pointer">
               <i class="fa-solid fa-xmark"></i> <span>終了</span>
             </button>
@@ -309,7 +292,7 @@
                 <i class="fa-solid fa-triangle-exclamation mr-0.5"></i>ミス<span id="word-mistake-count">0</span>回
               </span>
             </div>
-            <div class="flex items-center justify-center gap-2 my-1">
+            <div class="flex flex-wrap items-center justify-center gap-2 my-1">
               <h2 id="word-text" class="text-2xl sm:text-4xl font-black tracking-tight break-words">create</h2>
               <button
                 onclick="playSpeech()"
@@ -319,6 +302,23 @@
                 <i class="fa-solid fa-volume-high text-xs"></i>
               </button>
             </div>
+            <div class="flex items-center justify-center gap-3 my-2 px-3 w-full">
+              <button
+                id="prev-btn"
+                onclick="prevQuestion()"
+                class="nav-step-btn bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-200 cursor-pointer"
+              >
+                <i class="fa-solid fa-chevron-left text-xs"></i><span>前へ</span>
+              </button>
+              <button
+                id="next-btn"
+                onclick="nextQuestion()"
+                class="nav-step-btn bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white shadow-sm transition active:scale-95 cursor-pointer"
+              >
+                <span>次へ</span><i class="fa-solid fa-chevron-right text-xs"></i>
+              </button>
+            </div>
+            <p id="word-kana" class="text-[11px] font-bold text-slate-400 tracking-wider">[ クリエイト ]</p>
             <p id="word-kana" class="text-[11px] font-bold text-slate-400 tracking-wider">[ クリエイト ]</p>
             <p id="typing-hint" class="hidden text-[11px] font-extrabold text-indigo-600 dark:text-indigo-400 mt-1.5 bg-indigo-50 dark:bg-indigo-950/80 inline-block px-2.5 py-0.5 rounded-md"></p>
           </div>
