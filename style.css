@@ -168,3 +168,19 @@ html.dark .btn-secondary:hover {
   justify-content: center;
   gap: 0.25rem;
 }
+/* スマホでのタッチ操作を最適化する設定 */
+button,
+input,
+select {
+  /* タップ時のスマホ特有の青い残像を消す */
+  -webkit-tap-highlight-color: transparent;
+  /* 長押しによる余計なテキスト選択を防止してアプリっぽくする */
+  -webkit-touch-callout: none;
+}
+
+/* スマホの入力フォーカス時に画面がズームして崩れるのを防ぎ、文字サイズを最適化 */
+input[type="text"],
+input[type="number"],
+select {
+  font-size: 16px !important; /* iOSで自動ズームインするのを防ぐ最小サイズ */
+}

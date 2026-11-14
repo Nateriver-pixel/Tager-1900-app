@@ -185,11 +185,13 @@
               </div>
             </div>
             <input type="range" id="question-count-slider" min="10" max="200" value="10" step="10" oninput="syncCountFromSlider(this.value)" class="w-full accent-indigo-600 cursor-pointer my-1" />
+
+            <!-- クイック選択ボタン -->
             <div class="grid grid-cols-4 gap-1 mt-1.5">
               <button
                 type="button"
                 onclick="setQuickQuestionCount(10)"
-                class="quick-count-btn py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-600 dark:text-indigo-300 text-[10px] font-black transition cursor-pointer border border-indigo-200/60 dark:border-indigo-800"
+                class="quick-count-btn py-1 rounded-lg bg-indigo-600 text-white text-[10px] font-black transition cursor-pointer border border-indigo-600 shadow-xs"
               >
                 10問
               </button>
@@ -264,7 +266,7 @@
         </div>
       </details>
 
-      <!-- 2. QUIZ SCREEN -->
+      <!-- 2. QUIZ SCREEN (★スマホ視認性を上げるため文字サイズを全体的に拡大) -->
       <div id="quiz-screen" class="hidden relative screen-card p-4 sm:p-6 flex flex-col justify-between overflow-hidden">
         <div
           id="pause-overlay"
@@ -295,7 +297,7 @@
           </div>
 
           <!-- 進捗＆タイマー -->
-          <div class="flex justify-between items-center text-[11px] font-extrabold text-slate-400 mb-1.5">
+          <div class="flex justify-between items-center text-xs font-extrabold text-slate-500 mb-1.5">
             <span id="progress-text" class="tracking-wider">QUESTION 1/10</span>
             <div
               id="combo-badge"
@@ -306,54 +308,61 @@
             <span id="timer-text" class="text-amber-600 dark:text-amber-400 font-black flex items-center gap-1"><i class="fa-solid fa-clock"></i> <span id="timer-sec">10</span>s</span>
             <span id="score-text" class="text-indigo-600 dark:text-indigo-400 tracking-wide font-black">SCORE: 0</span>
           </div>
-          <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 mb-1.5 overflow-hidden">
+          <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 mb-1.5 overflow-hidden">
             <div id="progress-bar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all duration-300" style="width: 10%"></div>
           </div>
           <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1 mb-3 overflow-hidden">
             <div id="timer-bar" class="bg-amber-500 h-full rounded-full transition-all duration-1000 linear" style="width: 100%"></div>
           </div>
 
-          <!-- Compact Word Card -->
-          <div class="text-center my-2 py-3 px-3 bg-slate-50/80 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-inner">
-            <div class="flex justify-center items-center gap-1.5 mb-1 flex-wrap">
-              <span id="word-no" class="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-black px-2.5 py-0.5 rounded-full text-[10px] tracking-wider">No. 1</span>
-              <span id="word-pos" class="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-bold px-2 py-0.5 rounded-full text-[10px]">動詞</span>
-              <span id="word-level-badge" class="hidden bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-extrabold px-2 py-0.5 rounded-full text-[10px]">
+          <!-- Compact Word Card (★文字サイズ・視認性を大きく拡大) -->
+          <div class="text-center my-2 py-4 px-3 bg-slate-50/80 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-inner">
+            <div class="flex justify-center items-center gap-1.5 mb-1.5 flex-wrap">
+              <span id="word-no" class="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-black px-3 py-1 rounded-full text-xs tracking-wider">No. 1</span>
+              <span id="word-pos" class="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-bold px-2.5 py-0.5 rounded-full text-xs">動詞</span>
+              <span id="word-level-badge" class="hidden bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-extrabold px-2.5 py-0.5 rounded-full text-xs">
                 <i class="fa-solid fa-triangle-exclamation mr-0.5"></i>ミス<span id="word-mistake-count">0</span>回
               </span>
             </div>
-            <div class="flex flex-wrap items-center justify-center gap-2 my-1">
-              <h2 id="word-text" class="text-2xl sm:text-4xl font-black tracking-tight break-words">create</h2>
+
+            <div class="flex flex-wrap items-center justify-center gap-2.5 my-2">
+              <!-- 英単語の文字サイズをさらに大きく (text-3xl sm:text-5xl) -->
+              <h2 id="word-text" class="text-3xl sm:text-5xl font-black tracking-tight break-words">create</h2>
               <button
                 onclick="playSpeech()"
                 title="発音を聞く"
-                class="w-8 h-8 shrink-0 bg-indigo-100 dark:bg-indigo-900/60 hover:bg-indigo-200 dark:hover:bg-indigo-800 text-indigo-600 dark:text-indigo-300 rounded-xl flex items-center justify-center transition active:scale-95 cursor-pointer"
+                class="w-10 h-10 shrink-0 bg-indigo-100 dark:bg-indigo-900/60 hover:bg-indigo-200 dark:hover:bg-indigo-800 text-indigo-600 dark:text-indigo-300 rounded-xl flex items-center justify-center transition active:scale-95 cursor-pointer"
               >
-                <i class="fa-solid fa-volume-high text-xs"></i>
+                <i class="fa-solid fa-volume-high text-sm"></i>
               </button>
             </div>
-            <div class="flex items-center justify-center gap-3 my-2 px-3 w-full">
+
+            <div class="flex items-center justify-center gap-3 my-2.5 px-3 w-full">
               <button
                 id="prev-btn"
                 onclick="prevQuestion()"
-                class="nav-step-btn bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-200 cursor-pointer"
+                class="nav-step-btn bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-200 cursor-pointer py-2 text-xs sm:text-sm"
               >
                 <i class="fa-solid fa-chevron-left text-xs"></i><span>前へ</span>
               </button>
               <button
                 id="next-btn"
                 onclick="nextQuestion()"
-                class="nav-step-btn bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white shadow-sm transition active:scale-95 cursor-pointer"
+                class="nav-step-btn bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white shadow-sm transition active:scale-95 cursor-pointer py-2 text-xs sm:text-sm"
               >
                 <span>次へ</span><i class="fa-solid fa-chevron-right text-xs"></i>
               </button>
             </div>
-            <p id="word-kana" class="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 tracking-wider">[ クリエイト ]</p>
 
-            <p id="typing-hint" class="hidden text-[11px] font-extrabold text-indigo-600 dark:text-indigo-400 mt-1.5 bg-indigo-50 dark:bg-indigo-950/80 inline-block px-2.5 py-0.5 rounded-md"></p>
+            <!-- カタカナ読みの文字サイズを拡大 (text-sm sm:text-base) -->
+            <p id="word-kana" class="text-sm sm:text-base font-extrabold text-slate-600 dark:text-slate-300 tracking-wider my-1">[ クリエイト ]</p>
+
+            <p id="typing-hint" class="hidden text-xs font-extrabold text-indigo-600 dark:text-indigo-400 mt-2 bg-indigo-50 dark:bg-indigo-950/80 inline-block px-3 py-1 rounded-md"></p>
           </div>
 
-          <div id="options-container" class="space-y-2 mb-3"></div>
+          <!-- 4択選択肢のコンテナ (選択肢ボタンの文字も大きく見やすく調整) -->
+          <div id="options-container" class="space-y-2.5 mb-3"></div>
+
           <div id="typing-container" class="hidden mb-3">
             <form onsubmit="submitTypingAnswer(event)" class="space-y-2.5">
               <input
@@ -362,12 +371,12 @@
                 autocomplete="off"
                 spellcheck="false"
                 placeholder="英単語を入力..."
-                class="w-full bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 focus:border-indigo-500 rounded-xl px-4 py-3 text-base font-bold text-center focus:outline-none transition shadow-xs"
+                class="w-full bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 focus:border-indigo-500 rounded-xl px-4 py-3.5 text-lg font-bold text-center focus:outline-none transition shadow-xs"
               />
               <button
                 type="submit"
                 id="typing-submit-btn"
-                class="w-full bg-slate-800 dark:bg-indigo-600 hover:bg-slate-900 dark:hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                class="w-full bg-slate-800 dark:bg-indigo-600 hover:bg-slate-900 dark:hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl transition active:scale-95 text-sm sm:text-base flex items-center justify-center gap-2 cursor-pointer shadow-md"
               >
                 <span>解答する (Enter)</span><i class="fa-solid fa-paper-plane text-xs"></i>
               </button>
@@ -375,18 +384,18 @@
           </div>
         </div>
 
-        <div id="feedback-box" class="hidden p-3 rounded-2xl transition-all duration-200 shadow-xs">
+        <div id="feedback-box" class="hidden p-3.5 rounded-2xl transition-all duration-200 shadow-xs">
           <div class="flex items-center justify-between gap-2">
-            <p id="feedback-text" class="font-bold text-xs sm:text-sm text-left"></p>
+            <p id="feedback-text" class="font-bold text-sm sm:text-base text-left"></p>
             <span
               id="auto-next-countdown"
-              class="shrink-0 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-white/70 dark:bg-slate-800/70 px-2 py-1 rounded-lg border border-slate-200/60 dark:border-slate-700 flex items-center gap-1"
+              class="shrink-0 text-xs font-bold text-slate-500 dark:text-slate-400 bg-white/70 dark:bg-slate-800/70 px-2.5 py-1 rounded-lg border border-slate-200/60 dark:border-slate-700 flex items-center gap-1"
             >
               <i class="fa-solid fa-hourglass-half text-indigo-500"></i><span id="auto-next-sec">3</span>秒
             </span>
           </div>
-          <div id="synonyms-container" class="hidden mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700 text-xs text-left bg-white/60 dark:bg-slate-800/60 p-2.5 rounded-xl">
-            <div class="font-extrabold text-[10px] text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1"><i class="fa-solid fa-link text-indigo-500"></i> 類義語・関連語</div>
+          <div id="synonyms-container" class="hidden mt-2.5 pt-2.5 border-t border-slate-200/60 dark:border-slate-700 text-xs text-left bg-white/60 dark:bg-slate-800/60 p-3 rounded-xl">
+            <div class="font-extrabold text-xs text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1"><i class="fa-solid fa-link text-indigo-500"></i> 類義語・関連語</div>
             <div id="synonyms-list" class="flex flex-wrap gap-1.5 mt-1"></div>
           </div>
         </div>
@@ -398,7 +407,7 @@
           <i id="result-icon" class="fa-solid fa-trophy"></i>
         </div>
         <h2 class="text-xl font-black mb-0.5">お疲れ様でした！</h2>
-        <p id="result-range-info" class="text-slate-500 dark:text-slate-400 text-[11px] font-semibold mb-4">クイズ結果</p>
+        <p id="result-range-info" class="text-slate-500 dark:text-slate-400 text-xs font-semibold mb-4">クイズ結果</p>
 
         <div class="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-slate-800 dark:to-indigo-950/60 rounded-2xl p-4 mb-4 border border-indigo-100/80 dark:border-slate-800">
           <span class="text-slate-400 text-[10px] font-extrabold tracking-widest block mb-0.5">FINAL SCORE</span>

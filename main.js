@@ -1420,7 +1420,7 @@ function showQuestion() {
       options.forEach((opt) => {
         const btn = document.createElement("button");
         btn.className =
-          "w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 text-slate-700 dark:text-slate-200 font-bold py-2.5 px-3.5 rounded-xl text-left transition-all duration-150 active:scale-98 shadow-xs text-xs sm:text-sm flex items-center justify-between group option-btn cursor-pointer";
+          "w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 text-slate-700 dark:text-slate-200 font-bold py-3 px-4 rounded-xl text-left transition-all duration-150 active:scale-98 shadow-xs text-sm sm:text-base flex items-center justify-between group option-btn cursor-pointer";
         btn.innerHTML = `<span class="pr-2 leading-snug">${opt}</span><div class="w-5 h-5 shrink-0 rounded-full border-2 border-slate-200 dark:border-slate-600 flex items-center justify-center group-hover:border-indigo-400 transition-colors"><i class="fa-solid fa-check opacity-0 text-[10px]"></i></div>`;
 
         if (savedHistory) {
