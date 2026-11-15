@@ -29,13 +29,16 @@ let selectedDifficulty = "basic";
 let limitTime = 10;
 let currentQuizMode = "choice";
 let currentQuizOrder = "random"; // 'random' | 'cover_all' | 'srs' | 'bookmarks' | 'weak'
+let activeCoverRangeKey = "";
 let statsDisplayMode = "mastery"; // 'mastery' (/100語) | 'accuracy' (累計正答率)
 window.quizDirection = "en_ja";
 let currentPosFilter = "all"; // 'all' | '動詞' | '名詞' | '形容詞' | '副詞'
+let deviceViewMode = "mobile"; // 'mobile' | 'wide'
 
 let timerInterval = null;
 let autoNextInterval = null;
 let currentQuizTimeLeft = 0;
+let currentQuizRemainingMs = 0;
 let autoNextWaitLeft = 0;
 let isPaused = false;
 let isMuted = false;
@@ -61,26 +64,69 @@ const KEYS = {
   SRS_INTERVALS: "target1900_srs_intervals_v1",
   BOOKMARKS: "target1900_bookmarks_v1",
   STREAK: "target1900_streak_data_v1",
+  DEVICE_MODE: "target1900_device_mode_v1",
+  NICKNAME: "target1900_nickname_v1",
 };
 
 const DEFAULT_SRS_INTERVALS = [1, 3, 7, 14, 30];
 
 const DIFF_CONFIG = {
   basic: { label: "基礎", sub: "10秒", time: 10, mult: 1.0, activeCls: "bg-indigo-600 text-white border-indigo-600" },
-  applied: { label: "応用", sub: "5秒", time: 5, mult: 1.2, activeCls: "bg-amber-500 text-white border-amber-500" },
-  hard: { label: "発展", sub: "2秒", time: 2, mult: 1.5, activeCls: "bg-orange-600 text-white border-orange-600" },
-  tenfu: { label: "天賦", sub: "2秒･7文字以上優先", time: 2, mult: 2.0, activeCls: "bg-purple-600 text-white border-purple-600" },
-  kiwami: { label: "極", sub: "2秒･8文字以上のみ", time: 2, mult: 3.0, activeCls: "bg-rose-600 text-white border-rose-600" },
+  applied: { label: "応用", sub: "5秒", time: 5, mult: 1.3, activeCls: "bg-amber-500 text-white border-amber-500" },
+  hard: { label: "発展", sub: "2秒", time: 2, mult: 1.6, activeCls: "bg-orange-600 text-white border-orange-600" },
+  tenfu: { label: "天賦", sub: "2秒･7文字以上優先", time: 2, mult: 2.1, activeCls: "bg-purple-600 text-white border-purple-600" },
+  kiwami: { label: "極", sub: "2秒･8文字以上のみ", time: 2, mult: 2.8, activeCls: "bg-rose-600 text-white border-rose-600" },
 };
 
+// 新・ランク＆クラス定義（受験対策：来年4月までに1500語を3秒以内で反射回答する階段制）
 const RANK_LIST = [
-  { name: "レジェンド", min: 100000, color: "bg-gradient-to-r from-amber-400 via-orange-500 to-yellow-300 text-slate-900 border-amber-300 shadow-xs font-black" },
-  { name: "マスター", min: 50000, color: "bg-purple-500/10 text-purple-600 border-purple-400 font-extrabold" },
-  { name: "エキスパート", min: 20000, color: "bg-rose-500/10 text-rose-600 border-rose-400 font-bold" },
-  { name: "エリート", min: 8000, color: "bg-indigo-500/10 text-indigo-600 border-indigo-400 font-bold" },
-  { name: "ハイパー", min: 3000, color: "bg-cyan-500/10 text-cyan-600 border-cyan-400 font-bold" },
-  { name: "スーパー", min: 800, color: "bg-emerald-500/10 text-emerald-600 border-emerald-400 font-bold" },
-  { name: "ビギナー", min: 0, color: "bg-slate-100 text-slate-600 border-slate-300 font-bold" },
+  {
+    name: "レジェンド",
+    min: 100000,
+    desc: "頂点。すべての単語が脳に焼き付いた証。入試本番で英語を武器にする最強の称号。",
+    color: "bg-gradient-to-r from-amber-400 via-orange-500 to-yellow-300 text-slate-900 border-amber-300 shadow-xs font-black",
+  },
+  {
+    name: "マスター",
+    min: 60000,
+    desc: "合格水準の直前関門。No.1〜1500の全範囲をノーミス・3秒以内で叩き出す最終調整エリア。",
+    color: "bg-purple-500/10 text-purple-600 border-purple-400 font-extrabold",
+  },
+  {
+    name: "エキスパート",
+    min: 35000,
+    classStep: 5000,
+    desc: "上級者の壁。派生語や抽象語も網羅し、あらゆる入試問題に対応できる反射神経を養う。",
+    color: "bg-rose-500/10 text-rose-600 border-rose-400 font-bold",
+  },
+  {
+    name: "エリート",
+    min: 17500,
+    classStep: 3500,
+    desc: "本格的な実力者ゾーン。長文読解でも迷わない語彙力を手に入れ、模試の点数に繋げる。",
+    color: "bg-indigo-500/10 text-indigo-600 border-indigo-400 font-bold",
+  },
+  {
+    name: "ハイパー",
+    min: 7500,
+    classStep: 2000,
+    desc: "中堅へのステップ。忘却曲線（SRS）を活用し、記憶の定着率を高めるゾーン。",
+    color: "bg-cyan-500/10 text-cyan-600 border-cyan-400 font-bold",
+  },
+  {
+    name: "スーパー",
+    min: 2500,
+    classStep: 1000,
+    desc: "定着の初期段階。意味を見た瞬間に頭に浮かぶ3秒反射スピードを意識し始めよう。",
+    color: "bg-emerald-500/10 text-emerald-600 border-emerald-400 font-bold",
+  },
+  {
+    name: "ビギナー",
+    min: 0,
+    classStep: 500,
+    desc: "基礎の土台作り。まずは毎日アプリを開く習慣をつけ、基礎単語を確実に固めよう。",
+    color: "bg-slate-100 text-slate-600 border-slate-300 font-bold",
+  },
 ];
 
 // ===== ユーティリティ =====
@@ -108,9 +154,117 @@ function shuffleArray(arr) {
   return res;
 }
 
-// ===== ① ランク概要説明ポップアップ ＆ 追加UIの動的インジェクション =====
+function escapeHTML(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatRelativeTime(timestampVal) {
+  if (!timestampVal) return "記録なし";
+  let dateObj = null;
+  if (typeof timestampVal.toDate === "function") {
+    dateObj = timestampVal.toDate();
+  } else if (typeof timestampVal === "number") {
+    dateObj = new Date(timestampVal);
+  }
+  if (!dateObj || isNaN(dateObj.getTime())) return "最近";
+
+  const diffSec = Math.floor((Date.now() - dateObj.getTime()) / 1000);
+  if (diffSec < 60) return "たった今";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}分前`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}時間前`;
+  const diffDay = Math.floor(diffHour / 24);
+  return `${diffDay}日前`;
+}
+
+// ===== ユーザーランク＆クラス判定ロジック =====
+function getUserRankInfo(score) {
+  if (score >= 100000) {
+    return { name: "レジェンド", classNum: null, color: RANK_LIST[0].color, currentMin: 100000, nextPt: null };
+  }
+  if (score >= 60000) {
+    return { name: "マスター", classNum: null, color: RANK_LIST[1].color, currentMin: 60000, nextPt: 100000 };
+  }
+
+  for (let i = 2; i < RANK_LIST.length; i++) {
+    const r = RANK_LIST[i];
+    const nextRMin = RANK_LIST[i - 1].min;
+    if (score >= r.min && score < nextRMin) {
+      const diff = score - r.min;
+      const step = r.classStep;
+      const levelIdx = Math.min(4, Math.floor(diff / step));
+      const currentClass = 5 - levelIdx;
+      const currentMin = r.min + levelIdx * step;
+      const nextTarget = r.min + (levelIdx + 1) * step;
+      return { name: r.name, classNum: currentClass, color: r.color, currentMin, nextPt: nextTarget };
+    }
+  }
+  return { name: "ビギナー", classNum: 5, color: RANK_LIST[RANK_LIST.length - 1].color, currentMin: 0, nextPt: 500 };
+}
+
+function getRankFullLabel(score) {
+  const info = getUserRankInfo(score);
+  return info.classNum ? `${info.name} クラス${info.classNum}` : info.name;
+}
+
+// ===== ランク初期化機能 =====
+async function resetRankScore() {
+  const currentScore = parseInt(localStorage.getItem(KEYS.SCORE), 10) || 0;
+  if (currentScore === 0) {
+    alert("現在のポイントはすでに 0 pt（ビギナー クラス5）です。");
+    return;
+  }
+  if (!confirm(`現在の累計ポイント（${currentScore.toLocaleString()} pt）とランクを初期化し、0 pt（ビギナー クラス5）に戻しますか？\n※単語の習得記録や弱点リストは消えません。`)) {
+    return;
+  }
+
+  localStorage.setItem(KEYS.SCORE, "0");
+  updateRankUI();
+  if (currentUser && db) {
+    await pushLocalDataToCloud();
+  }
+  alert("ランクとポイントを初期化しました（0 pt / ビギナー クラス5）。");
+}
+window.resetRankScore = resetRankScore;
+
+// ===== デバイス最適化（スマホ／PCワイド切替） =====
+function toggleDeviceViewMode() {
+  deviceViewMode = deviceViewMode === "mobile" ? "wide" : "mobile";
+  localStorage.setItem(KEYS.DEVICE_MODE, deviceViewMode);
+  applySavedDeviceMode();
+}
+window.toggleDeviceViewMode = toggleDeviceViewMode;
+
+function applySavedDeviceMode() {
+  const saved = localStorage.getItem(KEYS.DEVICE_MODE) || "mobile";
+  deviceViewMode = saved;
+  const mainEl = $("main-container");
+  const iconEl = $("device-icon");
+  const labelEl = $("device-label");
+
+  if (!mainEl) return;
+
+  if (deviceViewMode === "wide") {
+    mainEl.style.maxWidth = "768px";
+    if (iconEl) iconEl.className = "fa-solid fa-desktop text-xs";
+    if (labelEl) labelEl.innerText = "ワイド";
+  } else {
+    mainEl.style.maxWidth = "512px";
+    if (iconEl) iconEl.className = "fa-solid fa-mobile-screen text-xs";
+    if (labelEl) labelEl.innerText = "スマホ";
+  }
+}
+
+// ===== ランク概要説明ポップアップ ＆ 追加UIの動的インジェクション =====
 function injectAdvancedUI() {
-  // ランクバッジの横に「？」ボタンを注入
+  applySavedDeviceMode();
+
   const rankBadge = $("user-rank-badge");
   if (rankBadge && !$("rank-info-btn")) {
     const btn = document.createElement("button");
@@ -118,12 +272,24 @@ function injectAdvancedUI() {
     btn.type = "button";
     btn.onclick = openRankModal;
     btn.className =
-      "w-5 h-5 ml-1.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-[10px] flex items-center justify-center hover:bg-indigo-600 hover:text-white transition cursor-pointer";
+      "w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-[10px] flex items-center justify-center hover:bg-indigo-600 hover:text-white transition cursor-pointer";
     btn.innerHTML = '<i class="fa-solid fa-question"></i>';
     rankBadge.insertAdjacentElement("afterend", btn);
+    // ポイント計算方式ガイド
+    const scoreDisplay = $("total-score-display");
+    if (scoreDisplay && !$("score-info-btn")) {
+      const scoreBtn = document.createElement("button");
+      scoreBtn.id = "score-info-btn";
+      scoreBtn.type = "button";
+      scoreBtn.onclick = openScoreModal;
+      scoreBtn.title = "ポイントの計算ルールを見る";
+      scoreBtn.className =
+        "w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-[10px] flex items-center justify-center hover:bg-indigo-600 hover:text-white transition cursor-pointer";
+      scoreBtn.innerHTML = '<i class="fa-solid fa-question"></i>';
+      scoreDisplay.insertAdjacentElement("afterend", scoreBtn);
+    }
   }
 
-  // ホーム画面に SRS・My単語帳・苦手特訓ボタンエリアを注入
   const reviewContainer = $("home-review-btn-container");
   if (reviewContainer && !$("advanced-modes-grid")) {
     const wrapper = document.createElement("div");
@@ -133,12 +299,11 @@ function injectAdvancedUI() {
   }
   renderAdvancedHomeUI();
 
-  // モーダル群（ランク詳細、SRS間隔設定、JSONバックアップ）のHTMLをbody末尾に注入
   if (!$("global-modals-container")) {
     const modContainer = document.createElement("div");
     modContainer.id = "global-modals-container";
     modContainer.innerHTML = `
-      <!-- RANK INFO MODAL (①) -->
+      <!-- RANK INFO MODAL -->
       <div id="rank-info-modal" onclick="if(event.target===this) closeRankModal()" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-5 shadow-2xl relative max-h-[85vh] flex flex-col">
           <button type="button" onclick="closeRankModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center cursor-pointer">
@@ -148,15 +313,15 @@ function injectAdvancedUI() {
             <div class="w-11 h-11 bg-indigo-100 dark:bg-indigo-950/70 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-1 text-lg">
               <i class="fa-solid fa-crown"></i>
             </div>
-            <h3 class="text-base font-black">ランク＆ポイント仕様</h3>
-            <p class="text-[11px] text-slate-500 dark:text-slate-400">正解スピード・連続コンボ・難易度倍率に応じて獲得ptが変動します</p>
+            <h3 class="text-base font-black">新・ランク＆クラス仕様（受験対策）</h3>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">3秒以内の反射解答と難易度倍率でクラス5→1を駆け上がろう</p>
           </div>
           <div id="rank-modal-list" class="space-y-2 overflow-y-auto pr-1 flex-1 mb-3"></div>
           <button type="button" onclick="closeRankModal()" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs shadow-sm transition cursor-pointer shrink-0">閉じる</button>
         </div>
       </div>
 
-      <!-- SRS SETTINGS MODAL (②) -->
+      <!-- SRS SETTINGS MODAL -->
       <div id="srs-settings-modal" onclick="if(event.target===this) closeSrsSettingsModal()" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-sm w-full p-5 shadow-2xl relative">
           <button type="button" onclick="closeSrsSettingsModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center cursor-pointer">
@@ -185,11 +350,83 @@ function injectAdvancedUI() {
           <button type="button" onclick="saveSrsSettings()" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-sm transition cursor-pointer">この間隔で保存する</button>
         </div>
       </div>
-    `;
+    <!-- SCORE INFO MODAL（ポイント計算方式の解説） -->
+      <div id="score-info-modal" onclick="if(event.target===this) closeScoreModal()" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-5 shadow-2xl relative max-h-[85vh] flex flex-col">
+          <button type="button" onclick="closeScoreModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center cursor-pointer">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+
+          <div class="text-center mb-3 shrink-0">
+            <div class="w-11 h-11 bg-indigo-100 dark:bg-indigo-950/70 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-1 text-lg">
+              <i class="fa-solid fa-calculator"></i>
+            </div>
+            <h3 class="text-base font-black">ポイント計算の仕組み</h3>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">反射スピード × 難易度 × 連続コンボで高得点！</p>
+          </div>
+
+          <div class="space-y-2.5 overflow-y-auto pr-1 flex-1 mb-3 text-left text-xs">
+            <!-- 基本計算式 -->
+            <div class="p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-900 text-center">
+              <div class="text-[10px] font-bold text-indigo-500 mb-0.5">1問あたりの獲得ポイント計算式</div>
+              <div class="font-black text-indigo-700 dark:text-indigo-300 text-xs sm:text-sm">
+                (基礎10pt ＋ 反射ボーナス) × 難易度倍率 × コンボ倍率
+              </div>
+            </div>
+
+            <!-- 1. 反射ボーナス -->
+            <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700">
+              <div class="font-black text-slate-700 dark:text-slate-200 mb-1"><i class="fa-solid fa-bolt text-purple-500 mr-1"></i>① 解答スピードボーナス</div>
+              <ul class="space-y-1 text-[11px] text-slate-600 dark:text-slate-300 font-semibold">
+                <li class="flex justify-between"><span>・2.0秒以下（赤線より手前）</span><span class="font-black text-purple-600 dark:text-purple-400">+10 pt（計20pt）</span></li>
+                <li class="flex justify-between"><span>・2.1〜3.0秒（黄線より手前）</span><span class="font-black text-violet-600 dark:text-violet-400">+5 pt（計15pt）</span></li>
+                <li class="flex justify-between"><span>・3.0秒より遅い正解</span><span class="text-slate-500">+0〜3 pt（残り時間比例）</span></li>
+              </ul>
+            </div>
+
+            <!-- 2. 倍率一覧 -->
+            <div class="grid grid-cols-2 gap-2">
+              <div class="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700">
+                <div class="font-black text-[11px] text-slate-700 dark:text-slate-200 mb-1">② 難易度倍率</div>
+                <div class="text-[10px] text-slate-600 dark:text-slate-300 space-y-0.5 font-semibold">
+                  <div>基礎 (10秒)：<strong>1.0倍</strong></div>
+                  <div>応用 (5秒)：<strong>1.3倍</strong></div>
+                  <div>発展 (2秒)：<strong>1.6倍</strong></div>
+                  <div>天賦 (2秒)：<strong>2.1倍</strong></div>
+                  <div>極 (2秒)：<strong class="text-rose-500">2.8倍</strong></div>
+                </div>
+              </div>
+              <div class="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700">
+                <div class="font-black text-[11px] text-slate-700 dark:text-slate-200 mb-1">③ コンボ倍率</div>
+                <div class="text-[10px] text-slate-600 dark:text-slate-300 space-y-0.5 font-semibold">
+                  <div>1〜4連続：<strong>1.0倍</strong></div>
+                  <div>5連続〜：<strong>1.3倍</strong></div>
+                  <div>10連続〜：<strong>1.6倍</strong></div>
+                  <div>20連続〜：<strong>2.2倍</strong></div>
+                  <div>30連続〜：<strong class="text-amber-500">3.0倍</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 具体例 -->
+            <div class="p-3 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900">
+              <div class="font-black text-emerald-700 dark:text-emerald-300 text-[11px] mb-1"><i class="fa-solid fa-lightbulb mr-1"></i>獲得ポイントの具体例</div>
+              <p class="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed font-semibold">
+                難易度<strong>「応用（1.3倍）」</strong>で<strong>10コンボ中（1.6倍）</strong>に、<strong>2秒以下（+10pt）</strong>で即答した場合：<br>
+                <span class="inline-block mt-1 font-black text-emerald-700 dark:text-emerald-300 bg-white/80 dark:bg-slate-900/80 px-2 py-0.5 rounded-lg">
+                  (10 + 10) × 1.3 × 1.6 ＝ 42 pt（1問で獲得！）
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <button type="button" onclick="closeScoreModal()" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs shadow-sm transition cursor-pointer shrink-0">閉じる</button>
+        </div>
+      </div>
+      `;
     document.body.appendChild(modContainer);
   }
 
-  // 設定エリア付近に「JSONバックアップ(⑤)」と「品詞フィルタ(⑥)」を追加
   const startCard = $("start-screen");
   if (startCard && !$("backup-tools-bar")) {
     const toolBar = document.createElement("div");
@@ -209,12 +446,10 @@ function injectAdvancedUI() {
         <i class="fa-solid fa-shield-halved text-indigo-500"></i> 完全ローカル・同期対応
       </div>
     `;
-    // クイズ開始ボタンの直前に挿入
     const startBtn = startCard.querySelector("button[onclick*=\"startQuiz('normal')\"]");
     if (startBtn) startBtn.insertAdjacentElement("beforebegin", toolBar);
   }
 
-  // 品詞フィルタ(⑥)をホーム画面の出題範囲付近に挿入
   const rangeCard = $("range-start")?.closest(".config-card");
   if (rangeCard && !$("pos-filter-container")) {
     const posDiv = document.createElement("div");
@@ -237,22 +472,30 @@ function injectAdvancedUI() {
   }
 }
 
-// ランク概要モーダル制御
 function openRankModal() {
   const totalScore = parseInt(localStorage.getItem(KEYS.SCORE), 10) || 0;
   const listEl = $("rank-modal-list");
   if (listEl) {
     listEl.innerHTML = RANK_LIST.map((r, idx) => {
-      const nextR = RANK_LIST[idx - 1];
-      const rangeStr = nextR ? `${r.min.toLocaleString()} 〜 ${(nextR.min - 1).toLocaleString()} pt` : `${r.min.toLocaleString()} pt 以上`;
-      const isCurrent = totalScore >= r.min && (!nextR || totalScore < nextR.min);
+      const isLegend = r.name === "レジェンド";
+      const isMaster = r.name === "マスター";
+      const rangeStr = isLegend
+        ? `${r.min.toLocaleString()} pt 以上`
+        : isMaster
+          ? `${r.min.toLocaleString()} 〜 99,999 pt`
+          : `${r.min.toLocaleString()} 〜 ${(RANK_LIST[idx - 1].min - 1).toLocaleString()} pt（${r.classStep.toLocaleString()}pt刻み）`;
+      const currentInfo = getUserRankInfo(totalScore);
+      const isCurrent = currentInfo.name === r.name;
       return `
-        <div class="p-3 rounded-2xl border ${isCurrent ? "border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40" : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50"} flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="px-2.5 py-1 rounded-full text-xs border ${r.color}"><i class="fa-solid fa-crown text-[10px] mr-1"></i>${r.name}</span>
-            ${isCurrent ? '<span class="text-[10px] font-black bg-indigo-600 text-white px-2 py-0.5 rounded-full">現在のランク</span>' : ""}
+        <div class="p-3 rounded-2xl border ${isCurrent ? "border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40" : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50"} text-left">
+          <div class="flex items-center justify-between mb-1">
+            <div class="flex items-center gap-1.5">
+              <span class="px-2.5 py-0.5 rounded-full text-xs border ${r.color}"><i class="fa-solid fa-crown text-[10px] mr-1"></i>${r.name}</span>
+              ${isCurrent ? `<span class="text-[10px] font-black bg-indigo-600 text-white px-2 py-0.5 rounded-full">現在 ${currentInfo.classNum ? `クラス${currentInfo.classNum}` : ""}</span>` : ""}
+            </div>
+            <span class="text-[11px] font-black text-slate-600 dark:text-slate-300">${rangeStr}</span>
           </div>
-          <span class="text-xs font-black text-slate-600 dark:text-slate-300">${rangeStr}</span>
+          <p class="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">${r.desc}</p>
         </div>`;
     }).join("");
   }
@@ -262,8 +505,13 @@ function openRankModal() {
 function closeRankModal() {
   $("rank-info-modal")?.classList.add("hidden");
 }
+function openScoreModal() {
+  $("score-info-modal")?.classList.remove("hidden");
+}
 
-// 品詞フィルタ設定 (⑥)
+function closeScoreModal() {
+  $("score-info-modal")?.classList.add("hidden");
+}
 function setPosFilter(pos) {
   currentPosFilter = pos;
   ["all", "動詞", "名詞", "形容詞", "副詞"].forEach((p) => {
@@ -277,7 +525,134 @@ function setPosFilter(pos) {
     }
   });
   if ($("pos-filter-label")) $("pos-filter-label").innerText = pos === "all" ? "すべて" : pos;
+  updateOrderProgressBadge();
 }
+
+// ===== 身内ランキング（ログイン全員表示方式） =====
+function getResolvedNickname(user) {
+  const savedNick = localStorage.getItem(KEYS.NICKNAME)?.trim();
+  if (savedNick) return savedNick;
+  if (user?.displayName) return user.displayName.slice(0, 12);
+  if (user?.email) return user.email.split("@")[0].slice(0, 12);
+  return "学習メンバー";
+}
+
+function openRankingModal() {
+  const modal = $("ranking-modal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+
+  const guestNotice = $("ranking-guest-notice");
+  const memberArea = $("ranking-member-area");
+
+  if (!currentUser) {
+    guestNotice?.classList.remove("hidden");
+    memberArea?.classList.add("hidden");
+    return;
+  }
+
+  guestNotice?.classList.add("hidden");
+  memberArea?.classList.remove("hidden");
+
+  const nickInput = $("ranking-nickname-input");
+  if (nickInput) {
+    nickInput.value = getResolvedNickname(currentUser);
+  }
+  loadLeaderboard();
+}
+window.openRankingModal = openRankingModal;
+
+function closeRankingModal() {
+  $("ranking-modal")?.classList.add("hidden");
+}
+window.closeRankingModal = closeRankingModal;
+
+async function saveRankingNickname(e) {
+  e.preventDefault();
+  if (!currentUser || !db) return;
+  const input = $("ranking-nickname-input");
+  const newNick = input?.value.trim().slice(0, 12);
+  if (!newNick) return;
+
+  localStorage.setItem(KEYS.NICKNAME, newNick);
+  updateAuthUI(currentUser);
+  await pushLocalDataToCloud();
+  await loadLeaderboard();
+}
+window.saveRankingNickname = saveRankingNickname;
+
+async function loadLeaderboard() {
+  const listEl = $("leaderboard-list");
+  const countLabel = $("ranking-count-label");
+  if (!listEl || !db || !currentUser) return;
+
+  listEl.innerHTML = `<div class="text-center text-xs text-slate-400 py-8 font-bold"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>ランキングを読み込み中...</div>`;
+
+  try {
+    const snap = await db.collection("leaderboard").orderBy("score", "desc").limit(30).get();
+    const members = [];
+    snap.forEach((doc) => {
+      members.push({ uid: doc.id, ...doc.data() });
+    });
+
+    if (countLabel) countLabel.innerText = `参加メンバー: ${members.length} 名`;
+
+    if (members.length === 0) {
+      listEl.innerHTML = `<div class="text-center text-xs text-slate-400 py-8 font-bold">まだデータがありません。クイズを解いてランキングに参加しよう！</div>`;
+      return;
+    }
+
+    listEl.innerHTML = members
+      .map((m, idx) => {
+        const rankNum = idx + 1;
+        const isMe = m.uid === currentUser.uid;
+        const scoreVal = Number(m.score) || 0;
+        const rankInfo = getUserRankInfo(scoreVal);
+        const rankLabel = m.rankLabel || getRankFullLabel(scoreVal);
+        const masteredCount = Number(m.masteredCount) || 0;
+        const streakCount = Number(m.streakCount) || 0;
+        const safeName = escapeHTML(m.nickname || "メンバー");
+        const timeStr = formatRelativeTime(m.updatedAt);
+
+        let medalHtml = `<span class="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-black text-xs flex items-center justify-center shrink-0">${rankNum}</span>`;
+        if (rankNum === 1) {
+          medalHtml = `<span class="w-7 h-7 rounded-full bg-amber-400 text-slate-900 font-black text-xs flex items-center justify-center shrink-0 shadow-xs"><i class="fa-solid fa-crown"></i></span>`;
+        } else if (rankNum === 2) {
+          medalHtml = `<span class="w-7 h-7 rounded-full bg-slate-300 text-slate-800 font-black text-xs flex items-center justify-center shrink-0 shadow-xs">2</span>`;
+        } else if (rankNum === 3) {
+          medalHtml = `<span class="w-7 h-7 rounded-full bg-amber-600/80 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">3</span>`;
+        }
+
+        return `
+          <div class="p-3 rounded-2xl border ${isMe ? "border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40" : "border-slate-200/80 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/50"} flex items-center justify-between gap-2 text-left">
+            <div class="flex items-center gap-2.5 min-w-0">
+              ${medalHtml}
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="font-black text-xs sm:text-sm truncate">${safeName}</span>
+                  ${isMe ? `<span class="text-[9px] font-black bg-indigo-600 text-white px-1.5 py-0.5 rounded-full">あなた</span>` : ""}
+                </div>
+                <div class="flex items-center gap-1.5 flex-wrap mt-1">
+                  <span class="px-2 py-0.2 rounded-full text-[10px] border ${rankInfo.color}">${escapeHTML(rankLabel)}</span>
+                  <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400">習得 ${masteredCount}語</span>
+                  <span class="text-[10px] font-bold text-amber-600 dark:text-amber-400"><i class="fa-solid fa-fire text-[9px]"></i>${streakCount}日</span>
+                </div>
+              </div>
+            </div>
+            <div class="text-right shrink-0">
+              <div class="text-sm sm:text-base font-black text-indigo-600 dark:text-indigo-400">${scoreVal.toLocaleString()} <span class="text-[10px]">pt</span></div>
+              <div class="text-[9px] font-bold text-slate-400 mt-0.5">${timeStr}</div>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+  } catch (err) {
+    console.warn("Leaderboard fetch error:", err);
+    listEl.innerHTML = `<div class="text-center text-xs text-rose-500 py-6 font-bold">ランキングの取得に失敗しました。Firestoreのルール設定を確認してください。</div>`;
+  }
+}
+window.loadLeaderboard = loadLeaderboard;
 
 // ===== Firebase 認証＆クラウド同期 =====
 function openAuthModal() {
@@ -296,7 +671,7 @@ function updateAuthUI(user) {
   const syncBadge = $("sync-status-badge");
 
   if (user) {
-    const shortName = user.displayName || (user.email ? user.email.split("@")[0] : "同期中");
+    const shortName = getResolvedNickname(user);
     if (label) label.innerText = shortName;
     if (icon) icon.className = "fa-solid fa-cloud-check text-emerald-300 text-xs";
     if (syncBadge) {
@@ -374,19 +749,37 @@ function scheduleCloudPush() {
 async function pushLocalDataToCloud() {
   if (!currentUser || !db) return;
   try {
+    const currentScore = parseInt(localStorage.getItem(KEYS.SCORE), 10) || 0;
+    const masteredList = getStorageJSON(KEYS.MASTERED, []);
+    const streakObj = getStorageJSON(KEYS.STREAK, { count: 0, lastDate: "", todayCount: 0 });
+    const nickname = getResolvedNickname(currentUser);
+
     const payload = {
-      score: parseInt(localStorage.getItem(KEYS.SCORE), 10) || 0,
-      mastered: getStorageJSON(KEYS.MASTERED, []),
+      nickname,
+      score: currentScore,
+      mastered: masteredList,
       stats: getStorageJSON(KEYS.STATS, {}),
       history: getStorageJSON(KEYS.HISTORY, {}),
       covered: getStorageJSON(KEYS.COVERED, {}),
       srsData: getStorageJSON(KEYS.SRS_DATA, {}),
       srsIntervals: localStorage.getItem(KEYS.SRS_INTERVALS) || "",
       bookmarks: getStorageJSON(KEYS.BOOKMARKS, []),
-      streak: getStorageJSON(KEYS.STREAK, { count: 0, lastDate: "", todayCount: 0 }),
+      streak: streakObj,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     };
     await db.collection("users").doc(currentUser.uid).set(payload, { merge: true });
+
+    // 身内ランキング（leaderboard）にも軽量サマリーを自動反映
+    const leaderboardPayload = {
+      nickname,
+      score: currentScore,
+      rankLabel: getRankFullLabel(currentScore),
+      masteredCount: Array.isArray(masteredList) ? masteredList.length : 0,
+      streakCount: Number(streakObj.count) || 0,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    await db.collection("leaderboard").doc(currentUser.uid).set(leaderboardPayload, { merge: true });
+
     if ($("auth-last-sync")) {
       const now = new Date();
       $("auth-last-sync").innerText = `最終同期: ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -413,6 +806,10 @@ async function syncWithCloudOnLogin(user) {
 
     if (snap.exists) {
       const cloud = snap.data();
+
+      if (cloud.nickname && !localStorage.getItem(KEYS.NICKNAME)) {
+        localStorage.setItem(KEYS.NICKNAME, cloud.nickname);
+      }
 
       const mergedScore = Math.max(localScore, Number(cloud.score) || 0);
       localStorage.setItem(KEYS.SCORE, mergedScore);
@@ -459,6 +856,7 @@ async function syncWithCloudOnLogin(user) {
       setStorageJSON(KEYS.STREAK, chosenStreak);
     }
 
+    updateAuthUI(user);
     await pushLocalDataToCloud();
     updateRankUI();
     renderAdvancedHomeUI();
@@ -516,7 +914,7 @@ function filterWordsByRange(words, start, end) {
   });
 }
 
-// ===== 網羅出題（1周優先）＆ 進捗リセットロジック =====
+// ===== 範囲内網羅モード（cover_all）の中断バグ完全修正 =====
 function updateOrderProgressBadge() {
   const badge = $("order-progress-badge");
   if (!badge) return;
@@ -542,8 +940,8 @@ function updateOrderProgressBadge() {
   const rangeWords = filterWordsByRange(getAllWords(), start, end);
   const coveredMap = getStorageJSON(KEYS.COVERED, {});
   const rangeKey = `${start}-${end}-${currentPosFilter}`;
-  const usedSet = new Set(coveredMap[rangeKey] || []);
-  const doneCount = rangeWords.filter((w) => usedSet.has(w.no)).length;
+  const usedSet = new Set((coveredMap[rangeKey] || []).map(Number));
+  const doneCount = rangeWords.filter((w) => usedSet.has(Number(w.no))).length;
 
   badge.innerText = `進捗: ${doneCount} / ${rangeWords.length}語`;
   badge.classList.remove("hidden");
@@ -557,6 +955,9 @@ function resetCoveredProgress() {
   const coveredMap = getStorageJSON(KEYS.COVERED, {});
   const rangeKey = `${start}-${end}-${currentPosFilter}`;
   delete coveredMap[rangeKey];
+  delete coveredMap[`${rangeKey}-kiwami`];
+  delete coveredMap[`${rangeKey}-tenfu7`];
+  delete coveredMap[`${rangeKey}-tenfuUnder`];
 
   setStorageJSON(KEYS.COVERED, coveredMap);
   updateOrderProgressBadge();
@@ -566,13 +967,13 @@ function resetCoveredProgress() {
 function pickQuestionsCoverAll(pool, count, rangeKey) {
   if (pool.length === 0) return [];
   const coveredMap = getStorageJSON(KEYS.COVERED, {});
-  let usedSet = new Set(coveredMap[rangeKey] || []);
+  let tempUsedSet = new Set((coveredMap[rangeKey] || []).map(Number));
   const picked = [];
 
   while (picked.length < count) {
-    let remaining = pool.filter((w) => !usedSet.has(w.no));
+    let remaining = pool.filter((w) => !tempUsedSet.has(Number(w.no)));
     if (remaining.length === 0) {
-      usedSet.clear();
+      tempUsedSet.clear();
       remaining = [...pool];
     }
     const shuffled = shuffleArray(remaining);
@@ -580,18 +981,32 @@ function pickQuestionsCoverAll(pool, count, rangeKey) {
     const batch = shuffled.slice(0, takeCount);
     batch.forEach((w) => {
       picked.push(w);
-      usedSet.add(w.no);
+      tempUsedSet.add(Number(w.no));
     });
   }
-
-  coveredMap[rangeKey] = Array.from(usedSet);
-  setStorageJSON(KEYS.COVERED, coveredMap);
-  updateOrderProgressBadge();
-  scheduleCloudPush();
   return picked;
 }
 
-// ===== ② 分散学習 (SRS) ロジック =====
+function markWordAsCovered(wordNo, poolSize) {
+  if (currentQuizOrder !== "cover_all" || !activeCoverRangeKey) return;
+  const no = Number(wordNo);
+  if (!no) return;
+
+  const coveredMap = getStorageJSON(KEYS.COVERED, {});
+  const currentList = (coveredMap[activeCoverRangeKey] || []).map(Number);
+  const usedSet = new Set(currentList);
+
+  if (poolSize > 0 && usedSet.size >= poolSize) {
+    usedSet.clear();
+  }
+  usedSet.add(no);
+
+  coveredMap[activeCoverRangeKey] = Array.from(usedSet);
+  setStorageJSON(KEYS.COVERED, coveredMap);
+  updateOrderProgressBadge();
+}
+
+// ===== 分散学習 (SRS) ロジック =====
 function getSrsIntervals() {
   const saved = localStorage.getItem(KEYS.SRS_INTERVALS);
   if (!saved) return DEFAULT_SRS_INTERVALS;
@@ -621,7 +1036,7 @@ function updateWordSrs(wordNo, isCorrect) {
   } else {
     srsMap[key] = {
       stage: 0,
-      nextReview: now, // 即時復習対象
+      nextReview: now,
       updatedAt: now,
     };
   }
@@ -671,7 +1086,7 @@ function saveSrsSettings() {
   renderAdvancedHomeUI();
 }
 
-// ===== ④ ストリーク（連続学習日数）＆ My単語帳 ＆ 苦手抽出 =====
+// ===== ストリーク＆My単語帳 ＆ 苦手抽出 =====
 function checkAndUpdateStreak() {
   const streakData = getStorageJSON(KEYS.STREAK, { count: 0, lastDate: "", todayCount: 0 });
   const todayStr = new Date().toISOString().split("T")[0];
@@ -681,10 +1096,8 @@ function checkAndUpdateStreak() {
     const currD = new Date(todayStr);
     const diffDays = Math.round((currD - lastD) / (1000 * 60 * 60 * 24));
 
-    if (diffDays === 1) {
-      // 継続
-    } else if (diffDays > 1) {
-      streakData.count = 0; // 途切れ
+    if (diffDays > 1) {
+      streakData.count = 0;
     }
     streakData.todayCount = 0;
   }
@@ -730,16 +1143,14 @@ function toggleBookmark(wordNo) {
   }
   setStorageJSON(KEYS.BOOKMARKS, Array.from(set));
   scheduleCloudPush();
-  // UI上の星アイコン更新
   const btn = document.querySelector(`button[data-bookmark-no="${no}"]`);
   if (btn) {
     const isSaved = set.has(no);
-    btn.className = `w-8 h-8 rounded-xl flex items-center justify-center transition cursor-pointer ${isSaved ? "bg-amber-100 dark:bg-amber-950/80 text-amber-500" : "bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-amber-500"}`;
+    btn.className = `w-7 h-7 rounded-xl flex items-center justify-center transition cursor-pointer shrink-0 ${isSaved ? "bg-amber-100 dark:bg-amber-950/80 text-amber-500" : "bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-amber-500"}`;
     btn.innerHTML = `<i class="fa-${isSaved ? "solid" : "regular"} fa-star text-xs"></i>`;
   }
 }
 
-// 苦手抽出ロジック
 function getWeakWordsTop() {
   const map = getStorageJSON(KEYS.HISTORY, {});
   const list = Object.values(map)
@@ -749,11 +1160,12 @@ function getWeakWordsTop() {
   return list;
 }
 
-// ===== ⑤ 学習データの JSON バックアップ（書き出し・復元） =====
+// ===== 学習データの JSON バックアップ =====
 function exportUserDataJSON() {
   const backup = {
-    version: "8.0",
+    version: "8.2",
     exportedAt: new Date().toISOString(),
+    nickname: localStorage.getItem(KEYS.NICKNAME) || "",
     score: localStorage.getItem(KEYS.SCORE) || "0",
     stats: getStorageJSON(KEYS.STATS, {}),
     mastered: getStorageJSON(KEYS.MASTERED, []),
@@ -781,6 +1193,7 @@ function importUserDataJSON(e) {
     try {
       const data = JSON.parse(event.target.result);
       if (!data.version) throw new Error("無効なフォーマットです");
+      if (data.nickname) localStorage.setItem(KEYS.NICKNAME, data.nickname);
       if (data.score) localStorage.setItem(KEYS.SCORE, data.score);
       if (data.stats) setStorageJSON(KEYS.STATS, data.stats);
       if (data.mastered) setStorageJSON(KEYS.MASTERED, data.mastered);
@@ -792,6 +1205,7 @@ function importUserDataJSON(e) {
       if (data.streak) setStorageJSON(KEYS.STREAK, data.streak);
 
       alert("学習データの復元が完了しました！");
+      if (currentUser) updateAuthUI(currentUser);
       updateRankUI();
       renderAdvancedHomeUI();
       renderStatsGraph();
@@ -817,7 +1231,6 @@ function renderAdvancedHomeUI() {
   const weakCount = getWeakWordsTop().length;
 
   grid.innerHTML = `
-    <!-- ストリーク＆今日のノルマバッジ -->
     <div class="bg-white/90 dark:bg-slate-800/90 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-xs flex items-center justify-between text-xs font-bold">
       <div class="flex items-center gap-2">
         <span class="px-2.5 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center gap-1 font-black">
@@ -830,7 +1243,6 @@ function renderAdvancedHomeUI() {
       </div>
     </div>
 
-    <!-- 特殊モード＆分散学習ボタン群 -->
     <div class="grid grid-cols-3 gap-1.5">
       <button type="button" onclick="startSpecialQuiz('srs')" class="py-2 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex flex-col items-center justify-center gap-0.5 shadow-xs transition cursor-pointer">
         <div class="flex items-center gap-1"><i class="fa-solid fa-brain"></i><span>本日の復習</span></div>
@@ -848,7 +1260,6 @@ function renderAdvancedHomeUI() {
       </button>
     </div>
 
-    <!-- SRS間隔変更ボタン行 -->
     <div class="flex justify-end">
       <button type="button" onclick="openSrsSettingsModal()" class="text-[10px] font-bold text-slate-400 hover:text-indigo-600 flex items-center gap-1 transition cursor-pointer">
         <i class="fa-solid fa-sliders"></i> SRS復習間隔をカスタム
@@ -859,6 +1270,7 @@ function renderAdvancedHomeUI() {
 
 function startSpecialQuiz(type) {
   unlockAudio();
+  activeCoverRangeKey = "";
   if (type === "srs") {
     const dueWords = getDueSrsWords();
     if (dueWords.length === 0) {
@@ -868,7 +1280,7 @@ function startSpecialQuiz(type) {
     quizQuestions = shuffleArray(dueWords).slice(0, selectedCount);
     currentQuizOrder = "srs";
   } else if (type === "bookmarks") {
-    const bookNos = new Set(getBookmarks());
+    const bookNos = new Set(getBookmarks().map(Number));
     const words = getAllWords().filter((w) => bookNos.has(Number(w.no)));
     if (words.length === 0) {
       alert("My単語帳に登録されている単語がありません。クイズ中に星マークを押して登録してください。");
@@ -886,12 +1298,11 @@ function startSpecialQuiz(type) {
     currentQuizOrder = "weak";
   }
 
-  // クイズ画面へ移行
   setupQuizEnvironment();
 }
 
 function setupQuizEnvironment() {
-  clearInterval(timerInterval);
+  cancelAnimationFrame(timerInterval);
   clearInterval(autoNextInterval);
   sessionGainedScore = 0;
   isPaused = false;
@@ -928,7 +1339,7 @@ function selectQuizOrder(order) {
   if ($("order-btn-random")) $("order-btn-random").className = order === "random" ? activeCls : inactiveCls;
   if ($("order-btn-cover_all")) $("order-btn-cover_all").className = order === "cover_all" ? activeCls : inactiveCls;
   if ($("order-desc-text")) {
-    $("order-desc-text").innerText = order === "cover_all" ? "範囲内の全単語を重複なく1回ずつ優先出題します" : "毎回範囲内からランダムに抽出します";
+    $("order-desc-text").innerText = order === "cover_all" ? "範囲内の全単語を重複なく1回ずつ優先出題（解答分のみ記録）" : "毎回範囲内からランダムに抽出します";
   }
   updateOrderProgressBadge();
 }
@@ -1038,7 +1449,7 @@ function unlockAudio() {
   }
 }
 
-// ===== 弱点履歴・範囲別アナリティクス管理 =====
+// ===== 弱点履歴・アナリティクス管理 =====
 const getMistakeHistoryMap = () => getStorageJSON(KEYS.HISTORY, {});
 function saveMistakeHistoryMap(map) {
   setStorageJSON(KEYS.HISTORY, map);
@@ -1144,7 +1555,7 @@ function resetStatsData() {
   }
 }
 
-// ===== ③ 累計正答率・習得率の範囲表示順バグ修正 (数値昇順ソート) =====
+// ===== 習得率・正答率の範囲表示順（数値昇順ソート） =====
 function renderStatsGraph() {
   const container = $("stats-graph-container");
   if (!container) return;
@@ -1159,7 +1570,6 @@ function renderStatsGraph() {
     let hasAny = false;
     const htmlList = [];
 
-    // ブロック番号の若い順（1〜100, 101〜200...）に数値ソートして描画
     const blocks = [];
     for (let i = 0; i < blockCount; i++) {
       const start = i * 100 + 1;
@@ -1196,7 +1606,6 @@ function renderStatsGraph() {
   } else {
     const stats = getStorageJSON(KEYS.STATS, {});
 
-    // "No." などの余計な文字を完全に排除し、確実に数値（開始番号）で昇順ソートする
     const keys = Object.keys(stats).sort((a, b) => {
       const cleanA = a.replace(/[^0-9-]/g, "");
       const cleanB = b.replace(/[^0-9-]/g, "");
@@ -1215,8 +1624,6 @@ function renderStatsGraph() {
         const s = stats[k];
         const rate = s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0;
         const barColor = rate >= 80 ? "bg-emerald-500" : rate >= 50 ? "bg-amber-500" : "bg-rose-500";
-
-        // クリーンな番号範囲文字列に整える（重複「No.No.」を絶対に防ぐ）
         const cleanK = k.replace(/[^0-9-]/g, "");
         const displayLabel = `No.${cleanK.replace("-", "〜")}`;
 
@@ -1235,39 +1642,41 @@ function renderStatsGraph() {
   }
 }
 
-// ===== ランク計算 =====
+// ===== コンボ倍率＆ランクUI更新 =====
 function getComboMultiplier(combo) {
-  if (combo >= 30) return 5.0;
-  if (combo >= 20) return 3.0;
-  if (combo >= 10) return 2.0;
-  if (combo >= 5) return 1.5;
+  if (combo >= 30) return 3.0;
+  if (combo >= 20) return 2.2;
+  if (combo >= 10) return 1.6;
+  if (combo >= 5) return 1.3;
   return 1.0;
 }
 
 function updateRankUI() {
   const totalScore = parseInt(localStorage.getItem(KEYS.SCORE), 10) || 0;
-  const currentRank = RANK_LIST.find((r) => totalScore >= r.min) || RANK_LIST[RANK_LIST.length - 1];
+  const rankInfo = getUserRankInfo(totalScore);
+
   if ($("total-score-display")) $("total-score-display").innerHTML = `${totalScore.toLocaleString()} <span class="text-[10px]">pt</span>`;
   if ($("user-rank-badge") && $("rank-name-text")) {
-    $("user-rank-badge").className = `inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-xs ${currentRank.color}`;
-    $("rank-name-text").textContent = currentRank.name;
+    $("user-rank-badge").className = `inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-xs ${rankInfo.color}`;
+    const displayText = rankInfo.classNum ? `${rankInfo.name} クラス${rankInfo.classNum}` : rankInfo.name;
+    $("rank-name-text").textContent = displayText;
   }
-  const idx = RANK_LIST.findIndex((r) => r.name === currentRank.name);
-  const nextRank = RANK_LIST[idx - 1];
-  if (nextRank) {
-    const progress = Math.min(100, Math.max(0, ((totalScore - currentRank.min) / (nextRank.min - currentRank.min)) * 100));
+
+  if (rankInfo.nextPt) {
+    const span = rankInfo.nextPt - rankInfo.currentMin;
+    const progress = span > 0 ? Math.min(100, Math.max(0, ((totalScore - rankInfo.currentMin) / span) * 100)) : 0;
     if ($("rank-progress-bar")) $("rank-progress-bar").style.width = `${progress}%`;
-    if ($("next-rank-pt")) $("next-rank-pt").textContent = `あと ${(nextRank.min - totalScore).toLocaleString()} pt`;
+    if ($("next-rank-pt")) $("next-rank-pt").textContent = `あと ${(rankInfo.nextPt - totalScore).toLocaleString()} pt`;
   } else {
     if ($("rank-progress-bar")) $("rank-progress-bar").style.width = "100%";
-    if ($("next-rank-pt")) $("next-rank-pt").textContent = "MAX RANK";
+    if ($("next-rank-pt")) $("next-rank-pt").textContent = "LEGEND MAX";
   }
 }
 
 // ===== クイズ開始・出題ロジック =====
 function startQuiz(mode) {
   unlockAudio();
-  clearInterval(timerInterval);
+  cancelAnimationFrame(timerInterval);
   clearInterval(autoNextInterval);
 
   const allWords = getAllWords();
@@ -1286,6 +1695,7 @@ function startQuiz(mode) {
   answerHistory = [];
   scoreCount = 0;
   currentIndex = 0;
+  activeCoverRangeKey = "";
   if ($("pause-overlay")) $("pause-overlay").style.display = "none";
 
   const { start, end } = getNormalizedRange();
@@ -1314,9 +1724,10 @@ function startQuiz(mode) {
       const over7 = filtered.filter((w) => getWordStr(w).length >= 7);
       const under7 = filtered.filter((w) => getWordStr(w).length < 7);
       if (currentQuizOrder === "cover_all") {
-        const pickedOver = pickQuestionsCoverAll(over7, Math.min(selectedCount, over7.length), `${rangeKey}-tenfu7`);
+        activeCoverRangeKey = rangeKey;
+        const pickedOver = pickQuestionsCoverAll(over7, Math.min(selectedCount, over7.length), rangeKey);
         const need = selectedCount - pickedOver.length;
-        const pickedUnder = need > 0 ? pickQuestionsCoverAll(under7, need, `${rangeKey}-tenfuUnder`) : [];
+        const pickedUnder = need > 0 ? pickQuestionsCoverAll(under7, need, rangeKey) : [];
         quizQuestions = shuffleArray([...pickedOver, ...pickedUnder]);
       } else {
         const picked = shuffleArray(over7).slice(0, selectedCount);
@@ -1331,14 +1742,23 @@ function startQuiz(mode) {
         alert(`選択範囲(No.${start}〜${end})に8文字以上の単語がありません。範囲を広げるか品詞設定を確認してください。`);
         return;
       }
-      quizQuestions =
-        currentQuizOrder === "cover_all" ? pickQuestionsCoverAll(kiwamiPool, selectedCount, `${rangeKey}-kiwami`) : shuffleArray(kiwamiPool).slice(0, Math.min(selectedCount, kiwamiPool.length));
+      if (currentQuizOrder === "cover_all") {
+        activeCoverRangeKey = `${rangeKey}-kiwami`;
+        quizQuestions = pickQuestionsCoverAll(kiwamiPool, selectedCount, activeCoverRangeKey);
+      } else {
+        quizQuestions = shuffleArray(kiwamiPool).slice(0, Math.min(selectedCount, kiwamiPool.length));
+      }
     } else {
       if (filtered.length === 0) {
         alert(`選択範囲(No.${start}〜${end})に条件に一致する単語がありません。`);
         return;
       }
-      quizQuestions = currentQuizOrder === "cover_all" ? pickQuestionsCoverAll(filtered, selectedCount, rangeKey) : shuffleArray(filtered).slice(0, Math.min(selectedCount, filtered.length));
+      if (currentQuizOrder === "cover_all") {
+        activeCoverRangeKey = rangeKey;
+        quizQuestions = pickQuestionsCoverAll(filtered, selectedCount, activeCoverRangeKey);
+      } else {
+        quizQuestions = shuffleArray(filtered).slice(0, Math.min(selectedCount, filtered.length));
+      }
     }
   }
 
@@ -1365,18 +1785,17 @@ function showQuestion() {
   if ($("word-no")) $("word-no").innerText = `No. ${wordNoVal}`;
   if ($("word-pos")) $("word-pos").innerText = q.pos || "";
 
-  // My単語帳スターボタンの動的配置・状態更新
   let starBtn = $("word-bookmark-btn");
   const wordNoNum = Number(wordNoVal);
-  const isBookmarked = getBookmarks().includes(wordNoNum);
+  const isBookmarked = getBookmarks().map(Number).includes(wordNoNum);
   if (!starBtn && $("word-no")?.parentElement) {
     starBtn = document.createElement("button");
     starBtn.id = "word-bookmark-btn";
     starBtn.type = "button";
-    starBtn.onclick = () => toggleBookmark(wordNoNum);
     $("word-no").insertAdjacentElement("afterend", starBtn);
   }
   if (starBtn) {
+    starBtn.onclick = () => toggleBookmark(wordNoNum);
     starBtn.setAttribute("data-bookmark-no", wordNoNum);
     starBtn.className = `w-7 h-7 rounded-xl flex items-center justify-center transition cursor-pointer shrink-0 ${isBookmarked ? "bg-amber-100 dark:bg-amber-950/80 text-amber-500" : "bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-amber-500"}`;
     starBtn.innerHTML = `<i class="fa-${isBookmarked ? "solid" : "regular"} fa-star text-xs"></i>`;
@@ -1489,12 +1908,16 @@ function showQuestion() {
   updateComboUI();
 
   if (savedHistory) {
-    clearInterval(timerInterval);
+    cancelAnimationFrame(timerInterval);
     clearInterval(autoNextInterval);
     if ($("timer-sec")) $("timer-sec").innerText = "-";
     if ($("timer-bar")) $("timer-bar").style.width = "0%";
     $("auto-next-countdown")?.classList.add("hidden");
     showFeedback(savedHistory.isCorrect, `【解答済み】${savedHistory.feedbackText}`, q, false);
+    $("timer-zone-2s")?.classList.add("hidden");
+    $("timer-zone-3s")?.classList.add("hidden");
+    $("timer-marker-2s")?.classList.add("hidden");
+    $("timer-marker-3s")?.classList.add("hidden");
   } else {
     $("feedback-box")?.classList.add("hidden");
     $("auto-next-countdown")?.classList.remove("hidden");
@@ -1520,30 +1943,92 @@ function updateComboUI() {
 }
 
 function startTimer(resume = false) {
-  if (!resume) currentQuizTimeLeft = limitTime;
-  const updateUI = () => {
+  if (!resume) {
+    currentQuizTimeLeft = limitTime;
+    currentQuizRemainingMs = limitTime * 1000;
+  }
+
+  // 2秒ライン・3秒ラインの境界位置を計算
+  const zone2s = $("timer-zone-2s");
+  const zone3s = $("timer-zone-3s");
+  const marker2s = $("timer-marker-2s");
+  const marker3s = $("timer-marker-3s");
+
+  if (zone2s && zone3s && marker2s && marker3s) {
+    if (limitTime > 3) {
+      // 基礎(10秒)や応用(5秒)：2秒と3秒の2本線を表示
+      const pct2s = ((limitTime - 2) / limitTime) * 100;
+      const pct3s = ((limitTime - 3) / limitTime) * 100;
+      zone2s.style.width = `${100 - pct2s}%`;
+      zone3s.style.width = `${100 - pct3s}%`;
+      marker2s.style.left = `calc(${pct2s}% - 1.5px)`;
+      marker3s.style.left = `calc(${pct3s}% - 1.25px)`;
+      zone2s.classList.remove("hidden");
+      zone3s.classList.remove("hidden");
+      marker2s.classList.remove("hidden");
+      marker3s.classList.remove("hidden");
+    } else {
+      // 制限時間2秒モード：全体が2秒以下（+10pt）対象
+      zone2s.style.width = "100%";
+      zone2s.classList.remove("hidden");
+      zone3s.classList.add("hidden");
+      marker2s.classList.add("hidden");
+      marker3s.classList.add("hidden");
+    }
+  }
+
+  let lastFrameTime = performance.now();
+  cancelAnimationFrame(timerInterval);
+
+  const tick = (now) => {
+    if (isPaused) return;
+
+    const deltaMs = now - lastFrameTime;
+    lastFrameTime = now;
+    currentQuizRemainingMs = Math.max(0, currentQuizRemainingMs - deltaMs);
+    currentQuizTimeLeft = Math.ceil(currentQuizRemainingMs / 1000);
+
+    const elapsedMs = limitTime * 1000 - currentQuizRemainingMs;
+    const isUnder2s = limitTime <= 2 || elapsedMs <= 2000;
+    const isUnder3s = limitTime <= 3 || elapsedMs <= 3000;
+    const widthPct = limitTime > 0 ? (currentQuizRemainingMs / (limitTime * 1000)) * 100 : 0;
+
     if ($("timer-sec")) $("timer-sec").innerText = currentQuizTimeLeft;
     if ($("timer-bar")) {
-      $("timer-bar").style.width = `${(currentQuizTimeLeft / limitTime) * 100}%`;
-      $("timer-bar").className = `${currentQuizTimeLeft <= 3 ? "bg-rose-500" : "bg-amber-500"} h-full rounded-full transition-all duration-1000 linear`;
+      $("timer-bar").style.width = `${widthPct}%`;
+      // 2秒以下: 鮮やかな明るい紫 / 3秒以内: ライトパープル / 3秒超: 淡い紫 / 残り3秒以下: 赤
+      let barColor = "bg-purple-300 dark:bg-purple-600/80";
+      if (isUnder2s) {
+        barColor = "bg-purple-500 dark:bg-purple-400";
+      } else if (isUnder3s) {
+        barColor = "bg-violet-400 dark:bg-violet-400";
+      } else if (currentQuizRemainingMs <= 3000) {
+        barColor = "bg-rose-500";
+      }
+      $("timer-bar").className = `relative z-10 ${barColor} h-full rounded-full`;
     }
     if ($("timer-text")) {
-      $("timer-text").className = `${currentQuizTimeLeft <= 3 ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400"} font-black flex items-center gap-1`;
+      let textColor = "text-purple-500 dark:text-purple-300";
+      if (isUnder2s) {
+        textColor = "text-purple-600 dark:text-purple-300";
+      } else if (isUnder3s) {
+        textColor = "text-violet-600 dark:text-violet-300";
+      } else if (currentQuizRemainingMs <= 3000) {
+        textColor = "text-rose-600 dark:text-rose-400";
+      }
+      $("timer-text").className = `${textColor} font-black flex items-center gap-1`;
     }
-  };
 
-  updateUI();
-  clearInterval(timerInterval);
-  timerInterval = setInterval(() => {
-    if (isPaused) return;
-    currentQuizTimeLeft--;
-    updateUI();
-    if (currentQuizTimeLeft <= 0) {
-      clearInterval(timerInterval);
+    if (currentQuizRemainingMs <= 0) {
       const currentOpts = Array.from(document.querySelectorAll(".option-btn span")).map((el) => el.innerText);
       handleAnswer(false, null, quizQuestions[currentIndex], true, currentOpts, null);
+      return;
     }
-  }, 1000);
+
+    timerInterval = requestAnimationFrame(tick);
+  };
+
+  timerInterval = requestAnimationFrame(tick);
 }
 
 function startAutoNext(resume = false) {
@@ -1582,7 +2067,7 @@ function submitTypingAnswer(e) {
 function handleAnswer(isCorrect, selectedBtn, wordObj, isTimeUp = false, options = null, selectedOption = null, typedText = "") {
   if (isAnswered) return;
   isAnswered = true;
-  clearInterval(timerInterval);
+  cancelAnimationFrame(timerInterval);
 
   const correctLabel = window.quizDirection === "ja_en" ? wordObj.word : wordObj.meaning;
 
@@ -1604,10 +2089,14 @@ function handleAnswer(isCorrect, selectedBtn, wordObj, isTimeUp = false, options
     });
   }
 
+  const { start, end } = getNormalizedRange();
+  const rangePoolSize = filterWordsByRange(getAllWords(), start, end).length;
+  markWordAsCovered(wordObj.no, rangePoolSize);
+
   recordAnswerStat(wordObj.no, isCorrect);
   recordMistakeMultiLevel(wordObj, isCorrect);
   updateWordSrs(wordObj.no, isCorrect);
-  addStreakProgress(1); // ストリーク（ノルマ30問）に加算
+  addStreakProgress(1);
 
   let feedbackText = "";
 
@@ -1616,8 +2105,18 @@ function handleAnswer(isCorrect, selectedBtn, wordObj, isTimeUp = false, options
     currentCombo++;
     if (currentCombo > maxCombo) maxCombo = currentCombo;
 
-    const timerRatio = Math.min(100, Math.max(0, (currentQuizTimeLeft / (limitTime || 10)) * 100));
-    const basePt = 10 + timerRatio * 0.5;
+    const elapsedMs = Math.max(0, (limitTime || 10) * 1000 - currentQuizRemainingMs);
+    const isUnder2s = limitTime <= 2 || elapsedMs <= 2000;
+    const isUnder3s = limitTime <= 3 || elapsedMs <= 3000;
+
+    let speedBonus = Math.max(0, Math.round((currentQuizTimeLeft / (limitTime || 10)) * 3));
+    if (isUnder2s) {
+      speedBonus = 10;
+    } else if (isUnder3s) {
+      speedBonus = 5;
+    }
+
+    const basePt = 10 + speedBonus;
     const diffMult = DIFF_CONFIG[selectedDifficulty]?.mult || 1.0;
     const gained = Math.round(basePt * getComboMultiplier(currentCombo) * diffMult) || 0;
 
@@ -1626,7 +2125,13 @@ function handleAnswer(isCorrect, selectedBtn, wordObj, isTimeUp = false, options
     localStorage.setItem(KEYS.SCORE, newTotal);
     scheduleCloudPush();
 
-    feedbackText = `正解! +${gained}pt`;
+    if (isUnder2s) {
+      feedbackText = `⚡2秒神速正解! +${gained}pt`;
+    } else if (isUnder3s) {
+      feedbackText = `⚡3秒反射正解! +${gained}pt`;
+    } else {
+      feedbackText = `正解! +${gained}pt`;
+    }
     updateComboUI();
     showFeedback(true, feedbackText, wordObj, true);
   } else {
@@ -1696,12 +2201,11 @@ function showFeedback(isSuccess, text, wordObj, animate = true) {
   }
 }
 
-// ===== ④ PCキーボードショートカット対応 =====
+// ===== キーボードショートカット =====
 window.addEventListener("keydown", (e) => {
   const quizScreen = $("quiz-screen");
   if (!quizScreen || quizScreen.classList.contains("hidden") || isPaused) return;
 
-  // 4択モードでの 1〜4 キー回答
   if (currentQuizMode === "choice" && !isAnswered) {
     const key = e.key;
     if (["1", "2", "3", "4"].includes(key)) {
@@ -1714,7 +2218,6 @@ window.addEventListener("keydown", (e) => {
     }
   }
 
-  // Enter キーで次へ進む（解答済みの場合）
   if (e.key === "Enter" && isAnswered) {
     const nextBtn = $("next-btn");
     if (nextBtn && !nextBtn.disabled) {
@@ -1724,10 +2227,10 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-// ===== ナビゲーション・画面遷移・リザルト演出 (⑦) =====
+// ===== ナビゲーション =====
 function prevQuestion() {
   if (currentIndex <= 0) return;
-  clearInterval(timerInterval);
+  cancelAnimationFrame(timerInterval);
   clearInterval(autoNextInterval);
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   currentIndex--;
@@ -1735,7 +2238,7 @@ function prevQuestion() {
 }
 
 function nextQuestion() {
-  clearInterval(timerInterval);
+  cancelAnimationFrame(timerInterval);
   clearInterval(autoNextInterval);
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   currentIndex++;
@@ -1748,7 +2251,7 @@ function togglePause() {
   const overlay = $("pause-overlay");
   if (isPaused) {
     if (overlay) overlay.style.display = "flex";
-    clearInterval(timerInterval);
+    cancelAnimationFrame(timerInterval);
     clearInterval(autoNextInterval);
   } else {
     if (overlay) overlay.style.display = "none";
@@ -1760,10 +2263,12 @@ function togglePause() {
 
 function forceQuit() {
   isPaused = false;
-  clearInterval(timerInterval);
+  activeCoverRangeKey = "";
+  cancelAnimationFrame(timerInterval);
   clearInterval(autoNextInterval);
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   if ($("pause-overlay")) $("pause-overlay").style.display = "none";
+  scheduleCloudPush();
   showStartScreen();
 }
 
@@ -1821,7 +2326,6 @@ function renderResultWrongList() {
   `;
 }
 
-// ⑦ クイズ終了後の「あと○語で次のランク！」＆「今回のMVP単語」演出
 function renderResultGrowthAndMvp() {
   const resultScreen = $("result-screen");
   if (!resultScreen) return;
@@ -1839,21 +2343,19 @@ function renderResultGrowthAndMvp() {
   }
 
   const totalScore = parseInt(localStorage.getItem(KEYS.SCORE), 10) || 0;
-  const currentRank = RANK_LIST.find((r) => totalScore >= r.min) || RANK_LIST[RANK_LIST.length - 1];
-  const idx = RANK_LIST.findIndex((r) => r.name === currentRank.name);
-  const nextRank = RANK_LIST[idx - 1];
+  const rankInfo = getUserRankInfo(totalScore);
 
   let nextInfoHtml = "";
-  if (nextRank) {
-    const diffPt = nextRank.min - totalScore;
-    const estQuestions = Math.ceil(diffPt / 15); // 平均獲得ptの目安
+  if (rankInfo.nextPt) {
+    const diffPt = rankInfo.nextPt - totalScore;
+    const estSets = Math.max(1, Math.ceil(diffPt / 150));
     nextInfoHtml = `
       <div class="bg-indigo-50/80 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-900 rounded-2xl p-3 mb-2 text-left">
         <div class="flex justify-between text-xs font-bold text-indigo-700 dark:text-indigo-300 mb-1">
-          <span><i class="fa-solid fa-arrow-trend-up mr-1"></i> 次のランク [${nextRank.name}] まで</span>
+          <span><i class="fa-solid fa-arrow-trend-up mr-1"></i> 次の昇格まで（現在: ${rankInfo.name}${rankInfo.classNum ? ` クラス${rankInfo.classNum}` : ""}）</span>
           <span>あと ${diffPt.toLocaleString()} pt</span>
         </div>
-        <p class="text-[10px] text-slate-500 dark:text-slate-400">目安として全問正解であと約 ${estQuestions} セットのクリア！</p>
+        <p class="text-[10px] text-slate-500 dark:text-slate-400">3秒反射ペースであと約 ${estSets} セット（10問単位）のクリア！</p>
       </div>`;
   } else {
     nextInfoHtml = `
@@ -1862,11 +2364,9 @@ function renderResultGrowthAndMvp() {
       </div>`;
   }
 
-  // 今回のMVP単語選出（今回正解した中で過去に一番ミス回数が多かった単語）
   let mvpHtml = "";
   const correctHistory = answerHistory.filter((h) => h && h.isCorrect);
   if (correctHistory.length > 0) {
-    // 履歴の中でミスが多かったものをMVPに選ぶ
     const sortedMvp = [...correctHistory].sort((a, b) => {
       const map = getMistakeHistoryMap();
       const countA = map[a.wordObj.no]?.mistakeCount || 0;
@@ -1941,7 +2441,6 @@ function showStartScreen() {
   updateOrderProgressBadge();
 }
 
-// ===== 初期化（難易度ボタン動的生成＆拡張UIインジェクション） =====
 function initDifficultyButtons() {
   const keys = Object.keys(DIFF_CONFIG);
   if ($("home-diff-container")) {
@@ -1957,22 +2456,18 @@ function initDifficultyButtons() {
   }
   setDifficulty(selectedDifficulty);
 }
-// ===== 出題数クイック選択機能 =====
+
 function setQuickQuestionCount(count) {
   selectedCount = count;
-
-  // 入力欄とスライダーの値を同期
   const inputEl = $("question-count-input");
   const sliderEl = $("question-count-slider");
   if (inputEl) inputEl.value = count;
   if (sliderEl) sliderEl.value = Math.min(Math.max(count, sliderEl.min), sliderEl.max);
 
-  // リザルト画面側のスライダー表示もあれば同期
   const resSlider = $("result-count-slider");
   if (resSlider) resSlider.value = count;
   if ($("result-count-display")) $("result-count-display").innerText = `${count}問`;
 
-  // ボタンの選択状態（見た目）を切り替え
   document.querySelectorAll(".quick-count-btn").forEach((btn) => {
     const btnText = btn.innerText.trim();
     const isTarget = btnText === `${count}問`;
@@ -1984,6 +2479,7 @@ function setQuickQuestionCount(count) {
     }
   });
 }
+
 window.onload = () => {
   initTheme();
   initDifficultyButtons();

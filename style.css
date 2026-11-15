@@ -3,6 +3,10 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+#main-container {
+  transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 @keyframes pulse-subtle {
   0%,
   100% {
@@ -172,9 +176,7 @@ html.dark .btn-secondary:hover {
 button,
 input,
 select {
-  /* タップ時のスマホ特有の青い残像を消す */
   -webkit-tap-highlight-color: transparent;
-  /* 長押しによる余計なテキスト選択を防止してアプリっぽくする */
   -webkit-touch-callout: none;
 }
 
@@ -182,5 +184,5 @@ select {
 input[type="text"],
 input[type="number"],
 select {
-  font-size: 16px !important; /* iOSで自動ズームインするのを防ぐ最小サイズ */
+  font-size: 16px !important;
 }
