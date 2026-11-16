@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>英単語ターゲット1900 究極学習アプリ v8.2</title>
+    <title>英単語ターゲット1900 究極学習アプリ v9.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = { darkMode: "class" };
@@ -19,13 +19,13 @@
     <!-- Header -->
     <header class="bg-indigo-600/95 dark:bg-slate-900/95 backdrop-blur-md text-white shadow-md py-2.5 px-3 sm:px-6 sticky top-0 z-30 border-b border-indigo-500/30 dark:border-slate-800">
       <div class="max-w-2xl mx-auto flex items-center justify-between gap-1.5">
-        <div class="flex items-center gap-2 min-w-0">
+        <div onclick="showStartScreen()" class="flex items-center gap-2 min-w-0 cursor-pointer" title="ホーム画面へ戻る">
           <div class="w-8 h-8 bg-white/10 dark:bg-slate-800 rounded-xl flex items-center justify-center text-white shrink-0">
             <i class="fa-solid fa-book-bookmark text-sm"></i>
           </div>
           <div class="text-left truncate">
             <h1 class="text-sm sm:text-base font-black tracking-wide leading-none truncate">ターゲット1900</h1>
-            <span class="text-[9px] sm:text-[10px] text-indigo-200 dark:text-indigo-400 font-semibold tracking-wider block mt-0.5">Ultimate v8.2</span>
+            <span class="text-[9px] sm:text-[10px] text-indigo-200 dark:text-indigo-400 font-semibold tracking-wider block mt-0.5">Ultimate v9.0</span>
           </div>
         </div>
 
@@ -65,9 +65,11 @@
 
     <!-- Main -->
     <main id="main-container" class="max-w-lg w-full mx-auto px-3 py-3 sm:p-4 my-auto flex-grow flex flex-col justify-center">
-      <!-- 1. START & CONFIG SCREEN -->
-      <div id="start-screen" class="screen-card p-4 sm:p-6 transition-all duration-300">
-        <!-- ランク＆累計ポイント（コンパクト上部配置） -->
+      <!-- ========================================================= -->
+      <!-- STEP 1: DASHBOARD (HOME SCREEN)                           -->
+      <!-- ========================================================= -->
+      <div id="dashboard-screen" class="screen-card p-4 sm:p-6 transition-all duration-300">
+        <!-- ランク＆累計ポイント＆2ヶ月シーズン情報 -->
         <div class="bg-white/90 dark:bg-slate-800/90 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-xs mb-3">
           <div class="flex items-center justify-between gap-1">
             <div class="flex items-center gap-1.5 flex-wrap">
@@ -92,8 +94,8 @@
           </div>
           <div class="mt-2">
             <div class="flex justify-between text-[10px] font-bold mb-1">
-              <span class="text-slate-400">NEXT CLASS / RANK</span>
-              <span id="next-rank-pt" class="text-indigo-500 font-extrabold">あと 500 pt</span>
+              <span id="season-days-left" class="text-slate-400">シーズン残り: 計算中... (12/1起点)</span>
+              <span id="next-rank-pt" class="text-indigo-500 font-extrabold">あと 600 pt</span>
             </div>
             <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
               <div id="rank-progress-bar" class="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
@@ -101,7 +103,107 @@
           </div>
         </div>
 
+        <!-- 今週の学習記録（月曜始まり）＆ 全単語辞書ボタン -->
+        <div class="bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-900 p-2.5 rounded-2xl mb-3 flex items-center justify-between gap-2">
+          <details class="flex-1 min-w-0 group">
+            <summary class="flex items-center gap-1.5 text-xs font-extrabold text-indigo-900 dark:text-indigo-200 cursor-pointer list-none select-none">
+              <i class="fa-solid fa-calendar-week text-indigo-500"></i>
+              <span>今週学んだ総単語数（月曜〜）</span>
+              <i class="fa-solid fa-chevron-down text-[10px] text-indigo-400 transition-transform duration-200 group-open:rotate-180"></i>
+            </summary>
+            <div class="mt-1.5 pt-1.5 border-t border-indigo-200/60 dark:border-indigo-800/60 text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
+              <span>今週解いた累計単語数:</span>
+              <strong id="weekly-learned-count" class="text-indigo-600 dark:text-indigo-400 text-sm font-black">0 語</strong>
+            </div>
+          </details>
+
+          <button
+            type="button"
+            onclick="openReferenceModal()"
+            class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black transition cursor-pointer shadow-xs flex items-center gap-1.5 shrink-0"
+          >
+            <i class="fa-solid fa-book-open"></i><span>全単語辞書</span>
+          </button>
+        </div>
+
+        <!-- 特別モード・弱点集中復習ボタンコンテナ -->
         <div id="home-review-btn-container" class="mb-3"></div>
+
+        <!-- ステップ2への遷移＆スコアアタック起動 -->
+        <div class="space-y-2.5">
+          <button onclick="openConfigScreen()" class="btn-indigo w-full py-3.5 text-base shadow-lg shadow-indigo-200 dark:shadow-none group">
+            <i class="fa-solid fa-sliders"></i>
+            <span>通常クイズ（出題設定へ進む）</span>
+            <i class="fa-solid fa-arrow-right transition-transform group-hover:translate-x-1"></i>
+          </button>
+
+          <button
+            type="button"
+            onclick="openScoreAttackModal()"
+            class="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white font-black text-sm shadow-md flex items-center justify-between transition active:scale-98 cursor-pointer"
+          >
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-bolt text-yellow-200 text-base"></i>
+              <span>スコアアタック（公式レギュレーション）</span>
+            </div>
+            <span class="text-[10px] bg-white/20 px-2.5 py-0.5 rounded-full">専用ランキング</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 折りたたみ式 アナリティクス（ダッシュボード下部） -->
+      <details id="analytics-section" class="config-card !p-3 mt-3 group">
+        <summary class="flex justify-between items-center cursor-pointer list-none select-none">
+          <span class="config-label !mb-0 flex items-center gap-1.5 text-xs">
+            <i class="fa-solid fa-chart-column text-indigo-500"></i>
+            <span>範囲別アナリティクス</span>
+            <span class="text-[10px] font-normal text-slate-400">(タップで開閉)</span>
+          </span>
+          <i class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform duration-200 group-open:rotate-180"></i>
+        </summary>
+
+        <div class="mt-3 pt-2.5 border-t border-slate-200/70 dark:border-slate-700/70">
+          <div class="flex items-center justify-between gap-2 mb-2.5">
+            <div class="inline-flex bg-slate-200/80 dark:bg-slate-800 p-0.5 rounded-lg text-[10px] font-extrabold">
+              <button
+                type="button"
+                id="stats-tab-mastery"
+                onclick="setStatsDisplayMode('mastery')"
+                class="px-2.5 py-1 rounded-md bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs transition cursor-pointer"
+              >
+                習得率 (/100語)
+              </button>
+              <button type="button" id="stats-tab-accuracy" onclick="setStatsDisplayMode('accuracy')" class="px-2.5 py-1 rounded-md text-slate-500 dark:text-slate-400 transition cursor-pointer">
+                累計正答率
+              </button>
+            </div>
+            <button type="button" onclick="resetStatsData()" class="text-[10px] text-slate-400 hover:text-rose-500 font-bold transition cursor-pointer">
+              <i class="fa-solid fa-trash-can mr-0.5"></i>リセット
+            </button>
+          </div>
+          <div id="stats-graph-container" class="space-y-2 max-h-56 overflow-y-auto pr-1"></div>
+        </div>
+      </details>
+
+      <!-- ========================================================= -->
+      <!-- STEP 2: CONFIG SCREEN (出題設定画面)                      -->
+      <!-- ========================================================= -->
+      <div id="config-screen" class="hidden screen-card p-4 sm:p-6 transition-all duration-300">
+        <!-- 上部ナビ＆？マーク公式推奨ガイド -->
+        <div class="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-100 dark:border-slate-800">
+          <button type="button" onclick="showStartScreen()" class="text-xs font-extrabold text-slate-500 hover:text-indigo-600 flex items-center gap-1 cursor-pointer">
+            <i class="fa-solid fa-arrow-left"></i><span>ホームへ戻る</span>
+          </button>
+          <span class="text-xs font-black text-indigo-600 dark:text-indigo-400">出題設定</span>
+          <button
+            type="button"
+            onclick="openGuideModal()"
+            class="px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 font-black text-[11px] flex items-center gap-1 hover:bg-indigo-600 hover:text-white transition cursor-pointer"
+            title="何をやればいいか迷ったときの公式推奨ガイド"
+          >
+            <i class="fa-solid fa-circle-question"></i><span>推奨設定?</span>
+          </button>
+        </div>
 
         <!-- 出題モード＆自動音声（2列コンパクト化） -->
         <div class="grid grid-cols-2 gap-2 mb-2.5">
@@ -131,28 +233,35 @@
           </div>
         </div>
 
-        <!-- 出題順序 -->
+        <!-- 出題順序（弱点プール選択肢を含む3列） -->
         <div class="config-card !p-2.5 mb-2.5">
           <div class="flex justify-between items-center mb-1.5">
-            <label class="config-label !mb-0 text-[11px]"><i class="fa-solid fa-shuffle mr-1 text-indigo-500"></i>出題順序</label>
+            <label class="config-label !mb-0 text-[11px]"><i class="fa-solid fa-shuffle mr-1 text-indigo-500"></i>出題順序・対象</label>
             <div class="flex items-center">
               <span id="order-progress-badge" class="hidden text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded-full"></span>
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-1.5">
+          <div class="grid grid-cols-3 gap-1.5">
             <button
               id="order-btn-random"
               onclick="selectQuizOrder('random')"
-              class="bg-indigo-600 text-white font-bold py-2 px-2 rounded-xl text-xs border border-indigo-600 shadow-xs flex items-center justify-center gap-1 transition cursor-pointer"
+              class="bg-indigo-600 text-white font-bold py-2 px-1.5 rounded-xl text-[11px] border border-indigo-600 shadow-xs flex items-center justify-center gap-1 transition cursor-pointer"
             >
               <i class="fa-solid fa-dice"></i> 完全ランダム
             </button>
             <button
               id="order-btn-cover_all"
               onclick="selectQuizOrder('cover_all')"
-              class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold py-2 px-2 rounded-xl text-xs hover:border-indigo-300 transition flex items-center justify-center gap-1 cursor-pointer"
+              class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold py-2 px-1.5 rounded-xl text-[11px] hover:border-indigo-300 transition flex items-center justify-center gap-1 cursor-pointer"
             >
-              <i class="fa-solid fa-layer-group"></i> 範囲内を網羅(1周)
+              <i class="fa-solid fa-layer-group"></i> 網羅(1周)
+            </button>
+            <button
+              id="order-btn-weak_pool"
+              onclick="selectQuizOrder('weak_pool')"
+              class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold py-2 px-1.5 rounded-xl text-[11px] hover:border-rose-300 transition flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <i class="fa-solid fa-fire text-rose-500"></i> 弱点プール
             </button>
           </div>
           <p id="order-desc-text" class="text-[10px] text-slate-400 font-semibold mt-1">毎回範囲内からランダムに抽出します</p>
@@ -160,7 +269,7 @@
 
         <!-- 出題スタイル -->
         <div class="config-card !p-2.5 mb-2.5">
-          <label class="config-label !mb-1.5 text-[11px]"><i class="fa-solid fa-gamepad mr-1 text-indigo-500"></i>出題スタイル</label>
+          <label class="config-label !mb-1.5 text-[11px]"><i class="fa-solid fa-gamepad mr-1 text-indigo-500"></i>出題スタイル（打ち込みはポイント1.3倍）</label>
           <div class="grid grid-cols-2 gap-1.5">
             <button
               id="mode-btn-choice"
@@ -206,10 +315,10 @@
                 <span class="text-[11px] font-bold text-slate-500">問</span>
               </div>
             </div>
-            <input type="range" id="question-count-slider" min="10" max="200" value="10" step="10" oninput="syncCountFromSlider(this.value)" class="w-full accent-indigo-600 cursor-pointer my-1" />
+            <input type="range" id="question-count-slider" min="10" max="200" value="10" step="5" oninput="syncCountFromSlider(this.value)" class="w-full accent-indigo-600 cursor-pointer my-1" />
 
-            <!-- クイック選択ボタン -->
-            <div class="grid grid-cols-4 gap-1 mt-1.5">
+            <!-- クイック選択ボタン：[10, 20, 25, 50, 100] -->
+            <div class="grid grid-cols-5 gap-1 mt-1.5">
               <button
                 type="button"
                 onclick="setQuickQuestionCount(10)"
@@ -223,6 +332,13 @@
                 class="quick-count-btn py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-[10px] font-black transition cursor-pointer border border-slate-200/60 dark:border-slate-700"
               >
                 20問
+              </button>
+              <button
+                type="button"
+                onclick="setQuickQuestionCount(25)"
+                class="quick-count-btn py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-[10px] font-black transition cursor-pointer border border-slate-200/60 dark:border-slate-700"
+              >
+                25問
               </button>
               <button
                 type="button"
@@ -254,41 +370,9 @@
         </button>
       </div>
 
-      <!-- 折りたたみ式 アナリティクス -->
-      <details id="analytics-section" class="config-card !p-3 mt-3 group">
-        <summary class="flex justify-between items-center cursor-pointer list-none select-none">
-          <span class="config-label !mb-0 flex items-center gap-1.5 text-xs">
-            <i class="fa-solid fa-chart-column text-indigo-500"></i>
-            <span>範囲別アナリティクス</span>
-            <span class="text-[10px] font-normal text-slate-400">(タップで開閉)</span>
-          </span>
-          <i class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform duration-200 group-open:rotate-180"></i>
-        </summary>
-
-        <div class="mt-3 pt-2.5 border-t border-slate-200/70 dark:border-slate-700/70">
-          <div class="flex items-center justify-between gap-2 mb-2.5">
-            <div class="inline-flex bg-slate-200/80 dark:bg-slate-800 p-0.5 rounded-lg text-[10px] font-extrabold">
-              <button
-                type="button"
-                id="stats-tab-mastery"
-                onclick="setStatsDisplayMode('mastery')"
-                class="px-2.5 py-1 rounded-md bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs transition cursor-pointer"
-              >
-                習得率 (/100語)
-              </button>
-              <button type="button" id="stats-tab-accuracy" onclick="setStatsDisplayMode('accuracy')" class="px-2.5 py-1 rounded-md text-slate-500 dark:text-slate-400 transition cursor-pointer">
-                累計正答率
-              </button>
-            </div>
-            <button type="button" onclick="resetStatsData()" class="text-[10px] text-slate-400 hover:text-rose-500 font-bold transition cursor-pointer">
-              <i class="fa-solid fa-trash-can mr-0.5"></i>リセット
-            </button>
-          </div>
-          <div id="stats-graph-container" class="space-y-2 max-h-56 overflow-y-auto pr-1"></div>
-        </div>
-      </details>
-
-      <!-- 2. QUIZ SCREEN -->
+      <!-- ========================================================= -->
+      <!-- STEP 3: QUIZ SCREEN (クイズ画面 - 既存ID完全保持)         -->
+      <!-- ========================================================= -->
       <div id="quiz-screen" class="hidden relative screen-card p-4 sm:p-6 flex flex-col justify-between overflow-hidden">
         <div
           id="pause-overlay"
@@ -302,10 +386,31 @@
           <p class="text-xs text-slate-400 font-semibold mb-6">タイマーは一時停止されています</p>
           <div class="w-full space-y-2.5 max-w-xs">
             <button onclick="togglePause()" class="btn-indigo w-full py-3 shadow-lg shadow-indigo-200 dark:shadow-none"><i class="fa-solid fa-play"></i><span>クイズを再開する</span></button>
-            <button onclick="forceQuit()" class="btn-secondary w-full py-3"><i class="fa-solid fa-house"></i><span>ホーム画面に戻る</span></button>
+            <button onclick="forceQuit('config')" class="btn-secondary w-full py-3"><i class="fa-solid fa-sliders"></i><span>出題設定に戻る</span></button>
+            <button onclick="forceQuit('home')" class="btn-secondary w-full py-3"><i class="fa-solid fa-house"></i><span>ホームに戻る</span></button>
           </div>
         </div>
-
+        <!-- 強制終了時の戻り先選択モーダル -->
+        <div
+          id="quit-modal"
+          onclick="if (event.target === this) closeQuitModal();"
+          class="hidden absolute inset-0 bg-slate-950/60 backdrop-blur-xs z-30 flex items-center justify-center p-5 rounded-3xl"
+        >
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xs p-5 text-center shadow-xl">
+            <div class="w-12 h-12 bg-rose-100 dark:bg-rose-950/70 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-2.5 text-lg">
+              <i class="fa-solid fa-right-from-bracket"></i>
+            </div>
+            <h3 class="text-base font-black mb-1">クイズを終了しますか？</h3>
+            <p class="text-[11px] text-slate-400 font-semibold mb-4">移動先の画面を選択してください</p>
+            <div class="space-y-2">
+              <button onclick="forceQuit('config')" class="btn-indigo w-full py-2.5 text-xs"><i class="fa-solid fa-sliders"></i><span>出題設定に戻る</span></button>
+              <button onclick="forceQuit('home')" class="btn-secondary w-full py-2.5 text-xs"><i class="fa-solid fa-house"></i><span>ホームに戻る</span></button>
+              <button onclick="closeQuitModal()" class="w-full py-2 text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer">
+                キャンセル（続ける）
+              </button>
+            </div>
+          </div>
+        </div>
         <div>
           <!-- 上部操作バー -->
           <div class="flex justify-between items-center mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800">
@@ -313,7 +418,9 @@
               <i class="fa-solid fa-pause"></i> <span>中断</span>
             </button>
 
-            <button onclick="forceQuit()" class="text-slate-500 dark:text-slate-400 hover:text-rose-600 font-bold text-xs flex items-center gap-1 transition cursor-pointer">
+            <span id="quiz-mode-badge" class="text-[10px] font-black text-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-full">通常モード</span>
+
+            <button onclick="openQuitModal()" class="text-slate-500 dark:text-slate-400 hover:text-rose-600 font-bold text-xs flex items-center gap-1 transition cursor-pointer">
               <i class="fa-solid fa-xmark"></i> <span>終了</span>
             </button>
           </div>
@@ -440,7 +547,9 @@
         </div>
       </div>
 
-      <!-- 3. RESULT SCREEN -->
+      <!-- ========================================================= -->
+      <!-- STEP 4: RESULT SCREEN (リザルト画面 - 既存ID完全保持)     -->
+      <!-- ========================================================= -->
       <div id="result-screen" class="hidden screen-card p-5 sm:p-7 text-center">
         <div id="result-icon-bg" class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center mx-auto mb-3 text-3xl shadow-inner">
           <i id="result-icon" class="fa-solid fa-trophy"></i>
@@ -505,7 +614,215 @@
       </div>
     </main>
 
-    <!-- RANKING MODAL (身内ランキング：ログイン全員表示方式) -->
+    <!-- ========================================================= -->
+    <!-- ALL WORDS REFERENCE MODAL (全単語辞書・高速検索)          -->
+    <!-- ========================================================= -->
+    <div id="reference-modal" onclick="if (event.target === this) closeReferenceModal();" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-5 shadow-2xl relative max-h-[90vh] flex flex-col">
+        <button
+          type="button"
+          onclick="closeReferenceModal()"
+          class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center cursor-pointer"
+        >
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <div class="text-center mb-3 shrink-0">
+          <div class="w-11 h-11 bg-indigo-100 dark:bg-indigo-950/70 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-1 text-lg">
+            <i class="fa-solid fa-book-open"></i>
+          </div>
+          <h3 class="text-base font-black">全単語リファレンス（辞書モード）</h3>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">No.1〜1500の全単語を単語・意味・番号で高速検索</p>
+        </div>
+
+        <div class="space-y-2 mb-3 shrink-0">
+          <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+            <input
+              type="text"
+              id="ref-search-input"
+              oninput="renderReferenceList()"
+              placeholder="英単語、日本語の意味、番号(例: 120)で検索..."
+              class="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+          <div class="flex items-center justify-between gap-1">
+            <div class="flex gap-1 overflow-x-auto pb-1 text-[10px] font-bold">
+              <button type="button" onclick="setRefStatusFilter('all')" id="ref-filter-all" class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white shrink-0 cursor-pointer">すべて</button>
+              <button
+                type="button"
+                onclick="setRefStatusFilter('weak')"
+                id="ref-filter-weak"
+                class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0 cursor-pointer"
+              >
+                苦手のみ
+              </button>
+              <button
+                type="button"
+                onclick="setRefStatusFilter('unmastered')"
+                id="ref-filter-unmastered"
+                class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0 cursor-pointer"
+              >
+                未習得のみ
+              </button>
+              <button
+                type="button"
+                onclick="setRefStatusFilter('bookmarked')"
+                id="ref-filter-bookmarked"
+                class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0 cursor-pointer"
+              >
+                My単語帳
+              </button>
+            </div>
+            <span id="ref-count-label" class="text-[10px] font-extrabold text-slate-400 shrink-0">全1500語</span>
+          </div>
+        </div>
+
+        <div id="reference-list-container" class="space-y-1.5 overflow-y-auto pr-1 flex-1 mb-3 min-h-[220px]"></div>
+
+        <button type="button" onclick="closeReferenceModal()" class="btn-secondary w-full py-2.5 text-xs shrink-0">閉じる</button>
+      </div>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- SINGLE WORD DETAIL MODAL (単語個別詳細ポップアップ)       -->
+    <!-- ========================================================= -->
+    <div id="word-detail-modal" onclick="if (event.target === this) closeWordDetailModal();" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-sm w-full p-5 shadow-2xl relative text-center">
+        <button
+          type="button"
+          onclick="closeWordDetailModal()"
+          class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center cursor-pointer"
+        >
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <div id="word-detail-content"></div>
+      </div>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- SCORE ATTACK MODAL (公式レギュレーション確認＆開始)       -->
+    <!-- ========================================================= -->
+    <div id="score-attack-modal" onclick="if (event.target === this) closeScoreAttackModal();" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-5 shadow-2xl relative text-center">
+        <button
+          type="button"
+          onclick="closeScoreAttackModal()"
+          class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center cursor-pointer"
+        >
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <div class="w-12 h-12 bg-amber-100 dark:bg-amber-950/70 text-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-2 text-xl">
+          <i class="fa-solid fa-bolt"></i>
+        </div>
+        <h3 class="text-lg font-black">スコアアタック（公式戦）</h3>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 mb-3">全員同一条件で瞬発力と正確性を競うハイスコアチャレンジ</p>
+
+        <div class="bg-slate-50 dark:bg-slate-800/80 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 text-left text-xs space-y-3 mb-4">
+          <!-- 1. 出題範囲 -->
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 font-bold">出題範囲</span>
+            <span class="px-2.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 font-extrabold text-[11px]"> No.1 〜 1500（全範囲ランダム） </span>
+          </div>
+
+          <!-- 2. 出題数・形式（スラッシュをやめて4つのタグに分割） -->
+          <div class="pt-2.5 border-t border-slate-200/70 dark:border-slate-700/70">
+            <div class="text-slate-400 font-bold mb-1.5">出題数・形式</div>
+            <div class="flex flex-wrap gap-1.5">
+              <span class="px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-[11px] text-slate-700 dark:text-slate-200">問題数無限</span>
+              <span class="px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-[11px] text-slate-700 dark:text-slate-200">制限時間60秒</span>
+              <span class="px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-[11px] text-slate-700 dark:text-slate-200">4択</span>
+              <span class="px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-[11px] text-slate-700 dark:text-slate-200">天賦モード固定</span>
+            </div>
+          </div>
+
+          <!-- 3. 自己ベスト記録（ハイライト表示） -->
+          <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
+            <span class="text-amber-700 dark:text-amber-300 font-bold flex items-center gap-1.5"> <i class="fa-solid fa-trophy text-amber-500"></i>自己ベスト記録 </span>
+            <strong id="sa-personal-best" class="text-sm font-black text-amber-600 dark:text-amber-400">0 pt</strong>
+          </div>
+
+          <!-- 4. キャッチコピー -->
+          <p class="text-xs font-black text-amber-600 dark:text-amber-400 pt-1 flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-crown text-amber-500"></i>
+            <span>全1500語の頂点へ――自己ベストを更新せよ！</span>
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onclick="
+            closeScoreAttackModal();
+            startScoreAttackMode();
+          "
+          class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white font-black text-sm shadow-md flex items-center justify-center gap-2 transition active:scale-98 cursor-pointer"
+        >
+          <i class="fa-solid fa-play"></i><span>公式レギュレーションで挑戦開始！</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- GUIDE MODAL (？マーク：公式推奨設定・お悩み解決ガイド)    -->
+    <!-- ========================================================= -->
+    <div id="guide-modal" onclick="if (event.target === this) closeGuideModal();" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-5 shadow-2xl relative max-h-[85vh] flex flex-col">
+        <button
+          type="button"
+          onclick="closeGuideModal()"
+          class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center cursor-pointer"
+        >
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <div class="text-center mb-3 shrink-0">
+          <div class="w-11 h-11 bg-indigo-100 dark:bg-indigo-950/70 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-1 text-lg">
+            <i class="fa-solid fa-lightbulb"></i>
+          </div>
+          <h3 class="text-base font-black">公式推奨設定 ＆ お悩み解決ガイド</h3>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">目的に合わせてワンタップで最適設定を反映します</p>
+        </div>
+
+        <div class="space-y-2.5 overflow-y-auto pr-1 flex-1 mb-3 text-left text-xs">
+          <div class="p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-black text-indigo-700 dark:text-indigo-300">① 王道コツコツ定着プラン</span>
+              <button type="button" onclick="applyRecommendedPlan('royal')" class="px-2.5 py-1 bg-indigo-600 text-white font-bold rounded-lg text-[10px] cursor-pointer hover:bg-indigo-700">
+                設定を適用
+              </button>
+            </div>
+            <p class="text-[11px] text-slate-600 dark:text-slate-300">出題数25問・網羅(1周)・応用(5秒)で、抜け漏れなく1周ずつ確実に固める標準プランです。</p>
+          </div>
+
+          <div class="p-3 rounded-2xl bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-black text-rose-700 dark:text-rose-300">② 弱点一網打尽・最速克服プラン</span>
+              <button type="button" onclick="applyRecommendedPlan('weak')" class="px-2.5 py-1 bg-rose-600 text-white font-bold rounded-lg text-[10px] cursor-pointer hover:bg-rose-700">
+                設定を適用
+              </button>
+            </div>
+            <p class="text-[11px] text-slate-600 dark:text-slate-300">「弱点プール」× 20問を選択し、忘れかけている苦手単語から優先的に2回連続正解で卒業させます。</p>
+          </div>
+
+          <div class="p-3 rounded-2xl bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-black text-purple-700 dark:text-purple-300">③ Mythic到達・限界反射トレーニング</span>
+              <button type="button" onclick="applyRecommendedPlan('mythic')" class="px-2.5 py-1 bg-purple-600 text-white font-bold rounded-lg text-[10px] cursor-pointer hover:bg-purple-700">
+                設定を適用
+              </button>
+            </div>
+            <p class="text-[11px] text-slate-600 dark:text-slate-300">難易度「発展(2秒)」× 50問の高速回転で、2秒神速ボーナスとコンボ倍率を最大化する上級者向け設定です。</p>
+          </div>
+        </div>
+
+        <button type="button" onclick="closeGuideModal()" class="btn-secondary w-full py-2.5 text-xs shrink-0">閉じる</button>
+      </div>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- RANKING MODAL (総合 / ウィークリー / スコアアタック 3タブ) -->
+    <!-- ========================================================= -->
     <div id="ranking-modal" onclick="if (event.target === this) closeRankingModal();" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-5 shadow-2xl relative max-h-[88vh] flex flex-col">
         <button
@@ -520,8 +837,24 @@
           <div class="w-11 h-11 bg-amber-100 dark:bg-amber-950/70 text-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-1 text-lg">
             <i class="fa-solid fa-trophy"></i>
           </div>
-          <h3 class="text-base font-black">メンバー累計ポイントランキング</h3>
-          <p class="text-[11px] text-slate-500 dark:text-slate-400">ログイン中のメンバー全員のスコアをリアルタイム集計</p>
+          <h3 class="text-base font-black">メンバーランキング</h3>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">総合・週間・スコアアタックの部門別ランキング</p>
+        </div>
+
+        <!-- 3部門切り替えタブ -->
+        <div class="grid grid-cols-3 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-3 shrink-0 text-[11px] font-bold gap-1">
+          <button
+            type="button"
+            id="rank-tab-all"
+            onclick="switchRankingTab('all')"
+            class="py-1.5 rounded-lg bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs transition cursor-pointer"
+          >
+            総合pt
+          </button>
+          <button type="button" id="rank-tab-weekly" onclick="switchRankingTab('weekly')" class="py-1.5 rounded-lg text-slate-500 dark:text-slate-400 transition cursor-pointer">週間 (月曜〜)</button>
+          <button type="button" id="rank-tab-score_attack" onclick="switchRankingTab('score_attack')" class="py-1.5 rounded-lg text-slate-500 dark:text-slate-400 transition cursor-pointer">
+            スコアアタック
+          </button>
         </div>
 
         <!-- 未ログイン時の案内 -->
@@ -575,7 +908,9 @@
       </div>
     </div>
 
-    <!-- AUTH MODAL (アカウント登録・ログイン・同期) -->
+    <!-- ========================================================= -->
+    <!-- AUTH MODAL (アカウント登録・ログイン・同期 - 既存ID完全保持)-->
+    <!-- ========================================================= -->
     <div id="auth-modal" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-sm w-full p-5 shadow-2xl relative">
         <button

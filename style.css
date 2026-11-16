@@ -40,6 +40,21 @@ body {
   animation: combo-bounce 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
+@keyframes screen-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.screen-animate {
+  animation: screen-fade-in 0.25s ease-out forwards;
+}
+
 /* ===== 共通UIコンポーネント ===== */
 .screen-card {
   background-color: rgba(255, 255, 255, 0.92);
@@ -160,6 +175,7 @@ html.dark .btn-secondary {
 html.dark .btn-secondary:hover {
   background-color: #334155;
 }
+
 .nav-step-btn {
   flex: 1;
   max-width: 140px;
@@ -172,6 +188,31 @@ html.dark .btn-secondary:hover {
   justify-content: center;
   gap: 0.25rem;
 }
+
+/* カタカナ読み表示のスムーズ切替・マスク演出 */
+.kana-hidden-state {
+  opacity: 0.45;
+  letter-spacing: 0.08em;
+}
+
+/* リファレンス・ランキング用スクロールバー調整 */
+#reference-list-container::-webkit-scrollbar,
+#leaderboard-list::-webkit-scrollbar,
+#stats-graph-container::-webkit-scrollbar {
+  width: 5px;
+}
+#reference-list-container::-webkit-scrollbar-track,
+#leaderboard-list::-webkit-scrollbar-track,
+#stats-graph-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+#reference-list-container::-webkit-scrollbar-thumb,
+#leaderboard-list::-webkit-scrollbar-thumb,
+#stats-graph-container::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+
 /* スマホでのタッチ操作を最適化する設定 */
 button,
 input,
