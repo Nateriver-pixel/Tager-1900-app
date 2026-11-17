@@ -1481,30 +1481,34 @@ function renderChoiceOptions(word, isAnswered) {
   }
 
   const prevRecord = session.answeredMap[session.currentIndex];
+  const shouldAnimate = isAnswered && prevRecord && !prevRecord.animated;
+  if (shouldAnimate) prevRecord.animated = true;
 
   container.innerHTML = word._cachedChoices
     .map((choice) => {
-      let cardCls = "bg-slate-50 dark:bg-[#181d2c] hover:bg-indigo-50 dark:hover:bg-[#1f263b] border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100";
-      let radioCls = "border-slate-400 dark:border-slate-600";
+      let cardCls = "bg-slate-50 dark:bg-[#181d2c] hover:bg-indigo-50 dark:hover:bg-[#1f263b] active:scale-[0.98] border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100";
+      let iconHtml = `<span class="w-4 h-4 rounded-full border-2 border-slate-400 dark:border-slate-600 shrink-0"></span>`;
 
       if (isAnswered) {
         if (choice === correctValue) {
-          cardCls = "bg-emerald-600 border-emerald-500 text-white";
-          radioCls = "border-white bg-white";
+          const popAnim = shouldAnimate ? "animate-correct-pop ring-2 ring-emerald-300" : "ring-1 ring-emerald-400/60";
+          cardCls = `bg-gradient-to-r from-emerald-600 to-teal-500 border-emerald-400 text-white ${popAnim}`;
+          iconHtml = `<span class="w-5 h-5 rounded-full bg-white text-emerald-600 flex items-center justify-center shrink-0 text-[11px] font-black"><i class="fa-solid fa-check"></i></span>`;
         } else if (prevRecord && choice === prevRecord.userAnswer) {
-          cardCls = "bg-rose-600 border-rose-500 text-white";
-          radioCls = "border-white bg-white";
+          const shakeAnim = shouldAnimate ? "animate-wrong-shake" : "";
+          cardCls = `bg-rose-600 border-rose-400 text-white ${shakeAnim}`;
+          iconHtml = `<span class="w-5 h-5 rounded-full bg-white text-rose-600 flex items-center justify-center shrink-0 text-[11px] font-black"><i class="fa-solid fa-xmark"></i></span>`;
         } else {
-          cardCls = "bg-slate-100 dark:bg-[#141824] border-slate-200 dark:border-slate-800/60 text-slate-400 opacity-55";
+          cardCls = "bg-slate-100 dark:bg-[#141824] border-slate-200 dark:border-slate-800/60 text-slate-400 opacity-45";
         }
       }
 
       const safeChoice = choice.replace(/"/g, "&quot;");
       return `
         <button type="button" ${isAnswered ? "disabled" : ""} data-choice="${safeChoice}" onclick="handleChoiceAnswer(this.getAttribute('data-choice'))"
-          class="option-choice-btn w-full text-left px-4 py-3.5 rounded-2xl border font-bold text-sm transition flex items-center justify-between gap-3 cursor-pointer ${cardCls}">
+          class="option-choice-btn w-full text-left px-4 py-3.5 rounded-2xl border font-bold text-sm transition-all duration-200 flex items-center justify-between gap-3 cursor-pointer ${cardCls}">
           <span class="flex-1 break-words">${choice}</span>
-          <span class="w-4 h-4 rounded-full border-2 shrink-0 ${radioCls}"></span>
+          ${iconHtml}
         </button>
       `;
     })
@@ -1681,7 +1685,7 @@ function evaluateAnswer(isCorrect, userAnswer, elapsedSec) {
   applyDeviceViewUI();
   showFeedbackAndSynonyms(word, isCorrect, correctDisplay, earnedPt, ptDetail);
 
-  const delayMs = session.type === "score_attack" ? 450 : isCorrect ? 1200 : 2500;
+  const delayMs = session.type === "score_attack" ? 400 : isCorrect ? 2000 : 3000;
   startAutoNextCountdown(delayMs);
 }
 

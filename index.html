@@ -32,6 +32,43 @@
         background: rgba(148, 163, 184, 0.35);
         border-radius: 9999px;
       }
+      @keyframes anim-correct-pop {
+        0% {
+          transform: scale(1);
+        }
+        40% {
+          transform: scale(1.05);
+          box-shadow: 0 0 22px rgba(16, 185, 129, 0.75);
+        }
+        100% {
+          transform: scale(1.01);
+          box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+        }
+      }
+      @keyframes anim-wrong-shake {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        20% {
+          transform: translateX(-7px);
+        }
+        40% {
+          transform: translateX(7px);
+        }
+        60% {
+          transform: translateX(-5px);
+        }
+        80% {
+          transform: translateX(5px);
+        }
+      }
+      .animate-correct-pop {
+        animation: anim-correct-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+      .animate-wrong-shake {
+        animation: anim-wrong-shake 0.4s ease-in-out;
+      }
     </style>
   </head>
   <body class="bg-slate-100 dark:bg-[#090b10] text-slate-800 dark:text-slate-100 min-h-screen flex flex-col items-center transition-colors duration-200">
