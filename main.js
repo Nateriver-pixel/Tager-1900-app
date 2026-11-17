@@ -119,11 +119,11 @@ const RANK_TIERS = [
 ];
 
 const DIFFICULTIES = {
-  basic: { id: "basic", label: "基礎", time: 10, mult: 1.0 },
-  applied: { id: "applied", label: "応用", time: 5, mult: 1.5 },
-  advanced: { id: "advanced", label: "発展", time: 2, mult: 1.8 },
-  tenfu: { id: "tenfu", label: "天賦", time: 2, mult: 2.4 },
-  kiwami: { id: "kiwami", label: "極", time: 2, mult: 3.2 },
+  basic: { id: "basic", label: "基礎", time: 10, mult: 1.0, desc: "制限時間10秒・ポイント1.0倍（標準出題）" },
+  applied: { id: "applied", label: "応用", time: 5, mult: 1.5, desc: "制限時間5秒・ポイント1.5倍（標準出題）" },
+  advanced: { id: "advanced", label: "発展", time: 2, mult: 1.8, desc: "制限時間2秒・ポイント1.8倍（標準出題）" },
+  tenfu: { id: "tenfu", label: "天賦", time: 2, mult: 2.4, desc: "制限時間2秒・ポイント2.4倍（7文字以上の長単語を優先出題）" },
+  kiwami: { id: "kiwami", label: "極", time: 2, mult: 3.2, desc: "制限時間2秒・ポイント3.2倍（8文字以上の長単語のみ限定出題）" },
 };
 
 let appState = {
@@ -870,6 +870,11 @@ function renderDifficultyButtons() {
         `;
       })
       .join("");
+
+    const descEl = document.getElementById(context === "review" ? "review-diff-desc" : "home-diff-desc");
+    if (descEl && DIFFICULTIES[selectedDiff]) {
+      descEl.textContent = DIFFICULTIES[selectedDiff].desc;
+    }
   });
 }
 
@@ -2485,7 +2490,8 @@ async function loadLeaderboard() {
         `;
       })
       .join("");
-  } catch {
-    listEl.innerHTML = `<p class="text-xs text-rose-400 text-center py-6">ランキング取得失敗</p>`;
+  } catch (e) {
+    console.error("ランキング取得エラー:", e);
+    listEl.innerHTML = `<p class="text-xs text-rose-400 text-center py-6">ランキング取得失敗<br><span class="text-[10px] opacity-80">${e.code || e.message}</span></p>`;
   }
 }
