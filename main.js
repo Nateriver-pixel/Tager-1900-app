@@ -133,6 +133,7 @@ let appState = {
   weeklyKey: "",
   weeklyScore: 0,
   weeklyLearnedCount: 0,
+  totalLearnedCount: 0,
   dailyKey: "",
   dailyCount: 0,
   dailyQuota: 30,
@@ -245,6 +246,15 @@ function getWordStat(no) {
   return appState.wordStats[no];
 }
 
+function computeTotalAnswersFromStats(wordStatsObj) {
+  if (!wordStatsObj) return 0;
+  let sum = 0;
+  for (const st of Object.values(wordStatsObj)) {
+    sum += (st.correct || 0) + (st.wrong || 0);
+  }
+  return sum;
+}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -254,6 +264,8 @@ function loadState() {
       if (!appState.wordStats) appState.wordStats = {};
       if (!appState.coveredMap) appState.coveredMap = {};
       if (!Array.isArray(appState.srsIntervals)) appState.srsIntervals = [1, 3, 7];
+      const statsSum = computeTotalAnswersFromStats(appState.wordStats);
+      appState.totalLearnedCount = Math.max(appState.totalLearnedCount || 0, statsSum);
     }
   } catch (e) {
     console.warn("読み込みエラー:", e);
@@ -463,19 +475,47 @@ function getFilteredReviewWords(filterType, rangeStart = 1, rangeEnd = 1500) {
   });
 }
 
+function getTierInfoByScore(score) {
+  const safeScore = Math.max(0, Math.floor(score || 0));
+  for (const t of RANK_TIERS) {
+    if (safeScore >= t.min && safeScore < t.max) return t;
+  }
+  return RANK_TIERS[0];
+}
+
+function getTierPillClassByRankName(rankName = "") {
+  for (const t of RANK_TIERS) {
+    if (rankName.startsWith(t.name)) return t.pillCls;
+  }
+  return RANK_TIERS[0].pillCls;
+}
+
 function updateDashboardUI() {
   checkPeriodicResets();
   const rank = getRankDetails(appState.totalScore);
+  const tier = getTierInfoByScore(appState.totalScore);
   const { daysLeft } = getSeasonInfo();
+
+  const rankBadgeEl = document.getElementById("user-rank-badge");
+  if (rankBadgeEl) {
+    rankBadgeEl.className = `inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black whitespace-nowrap shrink-0 shadow-sm hover:brightness-110 transition cursor-pointer ${tier.pillCls}`;
+  }
 
   const rankNameEl = document.getElementById("rank-name-text");
   if (rankNameEl) rankNameEl.textContent = rank.fullName;
 
   const scoreEl = document.getElementById("total-score-display");
-  if (scoreEl) scoreEl.innerHTML = `${appState.totalScore.toLocaleString()} <span class="text-xs">pt</span>`;
+  if (scoreEl) {
+    scoreEl.innerHTML = `${appState.totalScore.toLocaleString()} <span class="text-xs font-extrabold text-indigo-500 dark:text-indigo-400">pt</span>`;
+  }
 
   const seasonEl = document.getElementById("season-days-left");
   if (seasonEl) seasonEl.textContent = `シーズン残り: ${daysLeft}日 (12/1起点)`;
+
+  const pctTextEl = document.getElementById("rank-progress-pct-text");
+  if (pctTextEl) {
+    pctTextEl.textContent = rank.tierId === "mythic" ? "最高ランク到達" : `次のクラスまで ${Math.floor(rank.progressPct)}%`;
+  }
 
   const nextPtEl = document.getElementById("next-rank-pt");
   if (nextPtEl) nextPtEl.textContent = rank.nextPtText;
@@ -484,7 +524,14 @@ function updateDashboardUI() {
   if (barEl) barEl.style.width = `${rank.progressPct}%`;
 
   const weeklyCountEl = document.getElementById("weekly-learned-count");
-  if (weeklyCountEl) weeklyCountEl.textContent = `${appState.weeklyLearnedCount.toLocaleString()} 語`;
+  if (weeklyCountEl) weeklyCountEl.textContent = `${(appState.weeklyLearnedCount || 0).toLocaleString()} 語`;
+
+  const totalLearnedEl = document.getElementById("total-learned-count");
+  if (totalLearnedEl) {
+    const totalWords = Math.max(appState.totalLearnedCount || 0, computeTotalAnswersFromStats(appState.wordStats));
+    totalLearnedEl.textContent = `${totalWords.toLocaleString()} 語`;
+  }
+
   const weeklyScoreEl = document.getElementById("weekly-score-display");
   if (weeklyScoreEl) weeklyScoreEl.textContent = `${(appState.weeklyScore || 0).toLocaleString()} pt`;
 
@@ -512,7 +559,7 @@ function updateDashboardUI() {
   if (weakBadge) weakBadge.textContent = `${weakCount}語 候補`;
 
   const weakBarLabel = document.getElementById("weak-bar-label");
-  if (weakBarLabel) weakBarLabel.textContent = `弱点集中復習 (${weakCount}問)`;
+  if (weakBarLabel) weakBarLabel.textContent = `弱点即復習 (${weakCount}問)`;
 
   setStatsDisplayMode(appState.statsDisplayMode || "mastery", false);
 }
@@ -1626,6 +1673,7 @@ function evaluateAnswer(isCorrect, userAnswer, elapsedSec) {
 
   recordDailyProgress();
   appState.weeklyLearnedCount = (appState.weeklyLearnedCount || 0) + 1;
+  appState.totalLearnedCount = (appState.totalLearnedCount || 0) + 1;
 
   if (quizConfig.order === "cover_all" && session.type === "normal") {
     const rangeKey = `${quizConfig.rangeStart}-${quizConfig.rangeEnd}`;
@@ -1656,7 +1704,7 @@ function evaluateAnswer(isCorrect, userAnswer, elapsedSec) {
     const stepDays = intervals[Math.min(intervals.length - 1, Math.max(0, st.streak - 1))] || 1;
     st.nextReviewAt = Date.now() + stepDays * DAY_MS;
 
-    playTone(true);
+    playTone(true, ptDetail?.isGodSpeed);
   } else {
     session.combo = 0;
     st.wrong = (st.wrong || 0) + 1;
@@ -1672,7 +1720,17 @@ function evaluateAnswer(isCorrect, userAnswer, elapsedSec) {
     if (session.type === "custom_review" && reviewConfig.order === "loop_unmastered") {
       session.questions.push({ ...word, _cachedChoices: null, _cachedDir: null });
     }
-    playTone(false);
+
+    if (session.activeMode === "typing") {
+      const typingInput = document.getElementById("typing-input");
+      if (typingInput) {
+        typingInput.classList.remove("animate-wrong-shake", "border-rose-500");
+        void typingInput.offsetWidth;
+        typingInput.classList.add("animate-wrong-shake", "border-rose-500");
+      }
+    }
+
+    playTone(false, false);
   }
 
   if (session.type !== "score_attack") {
@@ -1702,14 +1760,15 @@ function evaluateAnswer(isCorrect, userAnswer, elapsedSec) {
   const delayMs = session.type === "score_attack" ? 400 : isCorrect ? 2000 : 3000;
   startAutoNextCountdown(delayMs);
 }
-
 function updateComboBadge() {
   const badge = document.getElementById("combo-badge");
   const countEl = document.getElementById("combo-count");
   if (!badge || !countEl) return;
   if (session.combo >= 2) {
     countEl.textContent = session.combo;
-    badge.classList.remove("hidden");
+    badge.classList.remove("hidden", "animate-combo");
+    void badge.offsetWidth;
+    badge.classList.add("animate-combo");
   } else {
     badge.classList.add("hidden");
   }
@@ -2151,7 +2210,7 @@ function toggleBookmarkInModal(no) {
   renderReferenceList();
 }
 
-// ★ 新・ランク＆クラス仕様モーダル（6888.png / 6889.png再現）
+// ★ 新・ランク＆クラス仕様モーダル
 function renderRankRulesModal() {
   const listEl = document.getElementById("rank-rules-list");
   if (!listEl) return;
@@ -2161,25 +2220,26 @@ function renderRankRulesModal() {
   listEl.innerHTML = orderedTiers
     .map((tier) => {
       const isCurrentTier = tier.id === curRank.tierId;
-      const cardBorder = isCurrentTier ? "border-indigo-500 bg-indigo-950/25 shadow-md shadow-indigo-500/10" : "border-slate-800 bg-[#181d2c]";
+      const cardBorder = isCurrentTier ? "border-indigo-500 bg-gradient-to-br from-indigo-950/60 via-[#171c2e] to-[#131726] shadow-lg shadow-indigo-500/15" : "border-slate-800/90 bg-[#161b29]";
       const currentBadge = isCurrentTier
-        ? `<span class="px-2.5 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-black shrink-0">${curRank.classNum ? `現在 クラス${curRank.classNum}` : "現在到達中"}</span>`
+        ? `<span class="px-2 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-black whitespace-nowrap shrink-0 shadow-sm">${curRank.classNum ? `現在 クラス${curRank.classNum}` : "現在到達中"}</span>`
         : "";
-      const stepNote = tier.id === "mythic" ? "" : ` (${tier.stepLabel})`;
+      const stepNote = tier.id === "mythic" ? "最高位" : tier.stepLabel;
 
       return `
-        <div class="p-3.5 rounded-2xl border ${cardBorder} space-y-2 text-left">
+        <div class="p-3.5 rounded-2xl border ${cardBorder} space-y-2 text-left transition">
           <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-1.5 min-w-0">
-              <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black shrink-0 ${tier.pillCls}">
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black whitespace-nowrap shrink-0 shadow-sm ${tier.pillCls}">
                 <i class="fa-solid fa-crown text-[10px]"></i>
                 <span>${tier.name}</span>
               </span>
               ${currentBadge}
             </div>
-            <span class="text-[11px] font-black text-white text-right leading-tight">
-              ${tier.rangeText}<span class="text-slate-400 font-bold">${stepNote}</span>
-            </span>
+            <div class="text-right shrink-0">
+              <div class="text-xs font-black text-white whitespace-nowrap tabular-nums">${tier.rangeText}</div>
+              <div class="text-[10px] font-bold text-indigo-400 whitespace-nowrap">${stepNote}</div>
+            </div>
           </div>
           <p class="text-[11px] font-bold text-slate-400 leading-relaxed">${tier.desc}</p>
         </div>
@@ -2225,7 +2285,7 @@ function playSpeech(customWord) {
   } catch {}
 }
 
-function playTone(isSuccess) {
+function playTone(isSuccess, isGodSpeed = false) {
   if (!appState.soundEnabled) return;
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -2234,28 +2294,46 @@ function playTone(isSuccess) {
     if (sharedAudioCtx.state === "suspended") sharedAudioCtx.resume().catch(() => {});
 
     const now = sharedAudioCtx.currentTime;
-    const osc = sharedAudioCtx.createOscillator();
-    const gain = sharedAudioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(sharedAudioCtx.destination);
+
+    const triggerNote = (freq, startOffset, duration, type = "triangle", peakGain = 0.14) => {
+      const osc = sharedAudioCtx.createOscillator();
+      const gain = sharedAudioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, now + startOffset);
+      gain.gain.setValueAtTime(0.001, now + startOffset);
+      gain.gain.exponentialRampToValueAtTime(peakGain, now + startOffset + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0008, now + startOffset + duration);
+      osc.connect(gain);
+      gain.connect(sharedAudioCtx.destination);
+      osc.start(now + startOffset);
+      osc.stop(now + startOffset + duration + 0.02);
+    };
 
     if (isSuccess) {
-      const pitchBoost = Math.min(1.5, 1 + Math.max(0, session.combo - 1) * 0.02);
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(587.33 * pitchBoost, now);
-      osc.frequency.setValueAtTime(880 * pitchBoost, now + 0.08);
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-      osc.start(now);
-      osc.stop(now + 0.25);
+      const scale = [523.25, 587.33, 659.25, 698.46, 783.99, 880.0, 987.77, 1046.5, 1174.66, 1318.51, 1396.91, 1567.98, 1760.0, 1975.53, 2093.0];
+      const stepIdx = Math.min(scale.length - 1, Math.max(0, session.combo - 1));
+      const baseFreq = scale[stepIdx];
+      const milestones = [3, 6, 11, 16, 21, 26, 31, 41, 50];
+      const isMilestone = milestones.includes(session.combo) || (session.combo > 50 && session.combo % 10 === 0);
+
+      if (isMilestone) {
+        triggerNote(523.25, 0.0, 0.22, "triangle", 0.14);
+        triggerNote(659.25, 0.045, 0.22, "triangle", 0.14);
+        triggerNote(783.99, 0.09, 0.24, "triangle", 0.15);
+        triggerNote(1046.5, 0.135, 0.36, "sine", 0.17);
+        triggerNote(1318.51, 0.135, 0.36, "triangle", 0.1);
+      } else {
+        triggerNote(baseFreq, 0.0, 0.16, "triangle", 0.14);
+        triggerNote(baseFreq * 1.25, 0.045, 0.22, "sine", 0.13);
+      }
+
+      if (isGodSpeed) {
+        triggerNote(2093.0, 0.05, 0.28, "sine", 0.08);
+      }
     } else {
-      osc.type = "triangle";
-      osc.frequency.setValueAtTime(220, now);
-      osc.frequency.setValueAtTime(165, now + 0.12);
-      gain.gain.setValueAtTime(0.14, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-      osc.start(now);
-      osc.stop(now + 0.3);
+      triggerNote(210, 0.0, 0.16, "sawtooth", 0.09);
+      triggerNote(148, 0.09, 0.26, "sawtooth", 0.1);
+      triggerNote(110, 0.09, 0.26, "triangle", 0.12);
     }
   } catch {}
 }
@@ -2264,6 +2342,16 @@ function playTone(isSuccess) {
 function setupKeyboardShortcuts() {
   document.addEventListener("keydown", (e) => {
     if (!session.active || session.isPaused) return;
+
+    // 解答済みの状態で Enter キーを押したら次の問題へ（日本語変換中のEnterは除外）
+    if (e.key === "Enter" && !e.isComposing && session.answeredMap[session.currentIndex]) {
+      if (session.type !== "score_attack") {
+        e.preventDefault();
+        nextQuestion();
+      }
+      return;
+    }
+
     if (document.activeElement && ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
 
     if (session.activeMode === "choice" && !session.answeredMap[session.currentIndex]) {
@@ -2380,6 +2468,7 @@ async function pullFromFirestore() {
       appState.weeklyScore = Math.max(appState.weeklyScore || 0, d.weeklyScore || 0);
       appState.weeklyLearnedCount = Math.max(appState.weeklyLearnedCount || 0, d.weeklyLearnedCount || 0);
     }
+    appState.totalLearnedCount = Math.max(appState.totalLearnedCount || 0, d.totalLearnedCount || 0);
     appState.saPersonalBest = Math.max(appState.saPersonalBest || 0, d.saPersonalBest || 0);
     if (!appState.nickname && d.nickname) appState.nickname = d.nickname;
 
@@ -2395,6 +2484,7 @@ async function pullFromFirestore() {
         lSt.nextReviewAt = Math.max(lSt.nextReviewAt || 0, rSt.nextReviewAt || 0);
       }
     }
+    appState.totalLearnedCount = Math.max(appState.totalLearnedCount || 0, computeTotalAnswersFromStats(appState.wordStats));
     saveState(false);
     updateDashboardUI();
     updateAuthHeaderUI();
@@ -2405,6 +2495,9 @@ async function syncToFirestore() {
   if (!currentUser || !db) return;
   const nick = appState.nickname || currentUser.displayName || (currentUser.email ? currentUser.email.split("@")[0] : "学習者");
   const rank = getRankDetails(appState.totalScore);
+  const totalWords = Math.max(appState.totalLearnedCount || 0, computeTotalAnswersFromStats(appState.wordStats));
+  appState.totalLearnedCount = totalWords;
+
   await db
     .collection("users")
     .doc(currentUser.uid)
@@ -2418,12 +2511,41 @@ async function syncToFirestore() {
         weeklyKey: appState.weeklyKey,
         weeklyScore: appState.weeklyScore || 0,
         weeklyLearnedCount: appState.weeklyLearnedCount || 0,
+        totalLearnedCount: totalWords,
         saPersonalBest: appState.saPersonalBest || 0,
         wordStats: appState.wordStats,
+        lastLoginAt: Date.now(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true },
     );
+}
+
+function formatLastLogin(lastLoginAt, updatedAt) {
+  let ts = typeof lastLoginAt === "number" && lastLoginAt > 0 ? lastLoginAt : 0;
+  if (!ts && updatedAt) {
+    if (typeof updatedAt.toMillis === "function") ts = updatedAt.toMillis();
+    else if (typeof updatedAt.seconds === "number") ts = updatedAt.seconds * 1000;
+  }
+  if (!ts) return { text: "記録なし", isRecent: false };
+
+  const diffMs = Math.max(0, Date.now() - ts);
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return { text: "たった今", isRecent: true };
+  if (diffMin < 15) return { text: `${diffMin}分前`, isRecent: true };
+  if (diffMin < 60) return { text: `${diffMin}分前`, isRecent: false };
+
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return { text: `${diffHour}時間前`, isRecent: false };
+
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 7) return { text: `${diffDay}日前`, isRecent: false };
+
+  const d = new Date(ts);
+  return {
+    text: `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`,
+    isRecent: false,
+  };
 }
 
 function openScoreAttackRanking() {
@@ -2454,7 +2576,7 @@ function switchRankingTab(tab) {
   ["all", "weekly", "score_attack"].forEach((t) => {
     const btn = document.getElementById(`rank-tab-${t}`);
     if (!btn) return;
-    btn.className = t === tab ? "py-1.5 rounded-lg bg-indigo-600 text-white cursor-pointer" : "py-1.5 rounded-lg text-slate-400 cursor-pointer";
+    btn.className = t === tab ? "py-1.5 rounded-lg bg-indigo-600 text-white shadow-sm transition cursor-pointer" : "py-1.5 rounded-lg text-slate-400 hover:text-white transition cursor-pointer";
   });
   loadLeaderboard();
 }
@@ -2475,7 +2597,7 @@ async function loadLeaderboard() {
   const countLabel = document.getElementById("ranking-count-label");
   if (!listEl || !db) return;
 
-  listEl.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">読み込み中...</p>`;
+  listEl.innerHTML = `<p class="text-xs text-slate-400 text-center py-8 font-bold"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>ランキングを読み込み中...</p>`;
   try {
     const snap = await db.collection("users").limit(50).get();
     const curSeason = getSeasonInfo().seasonKey;
@@ -2484,30 +2606,105 @@ async function loadLeaderboard() {
 
     snap.forEach((doc) => {
       const d = doc.data();
+      const seasonScore = d.seasonKey === curSeason ? d.totalScore || 0 : 0;
+      const weeklyScore = d.weeklyKey === curWeek ? d.weeklyScore || 0 : 0;
+      const weeklyWords = d.weeklyKey === curWeek ? d.weeklyLearnedCount || 0 : 0;
+      const totalWords = Math.max(d.totalLearnedCount || 0, computeTotalAnswersFromStats(d.wordStats));
+      const dynamicRank = getRankDetails(seasonScore).fullName;
+
       let metric = 0;
-      if (session.currentRankingTab === "all") metric = d.seasonKey === curSeason ? d.totalScore || 0 : 0;
-      else if (session.currentRankingTab === "weekly") metric = d.weeklyKey === curWeek ? d.weeklyScore || 0 : 0;
+      if (session.currentRankingTab === "all") metric = seasonScore;
+      else if (session.currentRankingTab === "weekly") metric = weeklyScore;
       else metric = d.saPersonalBest || 0;
-      rows.push({ uid: doc.id, nickname: d.nickname || "名無し", rankName: d.rankName || "ビギナー", metric });
+
+      rows.push({
+        uid: doc.id,
+        nickname: d.nickname || "名無し",
+        rankName: dynamicRank,
+        metric,
+        seasonScore,
+        weeklyWords,
+        totalWords,
+        lastLogin: formatLastLogin(d.lastLoginAt, d.updatedAt),
+      });
     });
 
     rows.sort((a, b) => b.metric - a.metric);
-    if (countLabel) countLabel.textContent = `参加: ${rows.length} 名`;
+    if (countLabel) {
+      countLabel.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>参加: ${rows.length} 名`;
+    }
 
     listEl.innerHTML = rows
       .map((r, idx) => {
         const isMe = currentUser && r.uid === currentUser.uid;
-        const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `${idx + 1}位`;
+        const pillCls = getTierPillClassByRankName(r.rankName);
+
+        let cardStyle = "bg-[#161b29] border-slate-800/90";
+        let rankBadgeHtml = `<span class="w-7 h-7 rounded-xl bg-[#1f263a] text-slate-300 font-black text-xs flex items-center justify-center shrink-0">${idx + 1}</span>`;
+
+        if (idx === 0) {
+          cardStyle = "bg-gradient-to-r from-amber-500/15 via-[#181d2e] to-[#161b29] border-amber-400/60 shadow-md shadow-amber-500/10";
+          rankBadgeHtml = `<span class="w-7 h-7 rounded-xl bg-gradient-to-br from-amber-300 to-amber-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0 shadow">1</span>`;
+        } else if (idx === 1) {
+          cardStyle = "bg-gradient-to-r from-slate-300/10 via-[#181d2e] to-[#161b29] border-slate-400/50";
+          rankBadgeHtml = `<span class="w-7 h-7 rounded-xl bg-gradient-to-br from-slate-200 to-slate-400 text-slate-900 font-black text-xs flex items-center justify-center shrink-0 shadow">2</span>`;
+        } else if (idx === 2) {
+          cardStyle = "bg-gradient-to-r from-orange-500/10 via-[#181d2e] to-[#161b29] border-orange-400/50";
+          rankBadgeHtml = `<span class="w-7 h-7 rounded-xl bg-gradient-to-br from-orange-300 to-amber-600 text-slate-950 font-black text-xs flex items-center justify-center shrink-0 shadow">3</span>`;
+        }
+
+        if (isMe) {
+          cardStyle += " ring-2 ring-indigo-500/80";
+        }
+
+        const meTag = isMe ? `<span class="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[9px] font-black whitespace-nowrap shrink-0">YOU</span>` : "";
+
+        const loginDot = r.lastLogin.isRecent
+          ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>`
+          : `<i class="fa-regular fa-clock text-[9px] text-slate-500 shrink-0"></i>`;
+
+        const subScoreText = session.currentRankingTab !== "all" ? `<div class="text-[10px] font-bold text-slate-400 tabular-nums">累計 ${r.seasonScore.toLocaleString()} pt</div>` : "";
+
         return `
-          <div class="p-2.5 rounded-xl border ${isMe ? "bg-indigo-950/50 border-indigo-500" : "bg-[#181d2c] border-slate-800"} flex items-center justify-between">
-            <div class="flex items-center gap-2 min-w-0">
-              <span class="w-6 text-center font-black text-xs">${medal}</span>
-              <div class="min-w-0 text-left">
-                <div class="font-black text-xs text-white truncate">${r.nickname}</div>
-                <div class="text-[10px] text-slate-400">${r.rankName}</div>
+          <div class="p-3 rounded-2xl border ${cardStyle} space-y-2 transition">
+            <!-- 上段：順位 ＋ ニックネーム ＋ ランク ＋ ポイント -->
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5 min-w-0">
+                ${rankBadgeHtml}
+                <div class="min-w-0 text-left space-y-1">
+                  <div class="flex items-center gap-1.5">
+                    <span class="font-black text-sm text-white truncate">${r.nickname}</span>
+                    ${meTag}
+                  </div>
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black whitespace-nowrap ${pillCls}">
+                      <i class="fa-solid fa-crown text-[8px]"></i>
+                      <span>${r.rankName}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="text-right shrink-0">
+                <div class="font-black text-base text-indigo-400 tabular-nums leading-tight">
+                  ${r.metric.toLocaleString()} <span class="text-[10px] font-extrabold">pt</span>
+                </div>
+                ${subScoreText}
               </div>
             </div>
-            <span class="font-black text-xs text-indigo-400">${r.metric.toLocaleString()} pt</span>
+
+            <!-- 下段：最終ログイン時間 ＆ 総合・週間単語数 -->
+            <div class="pt-1.5 border-t border-slate-800/80 flex items-center justify-between gap-2 text-[10px] font-bold text-slate-400">
+              <div class="flex items-center gap-1.5">
+                ${loginDot}
+                <span>最終: <strong class="${r.lastLogin.isRecent ? "text-emerald-400" : "text-slate-300"}">${r.lastLogin.text}</strong></span>
+              </div>
+              <div class="flex items-center gap-2.5 tabular-nums">
+                <span>総合: <strong class="text-slate-200">${r.totalWords.toLocaleString()}語</strong></span>
+                <span class="text-slate-600">|</span>
+                <span>今週: <strong class="text-sky-400">${r.weeklyWords.toLocaleString()}語</strong></span>
+              </div>
+            </div>
           </div>
         `;
       })

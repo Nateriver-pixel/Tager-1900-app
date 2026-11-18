@@ -89,55 +89,82 @@
         <!-- 1. ホーム画面 -->
         <!-- ==================================================================== -->
         <section id="dashboard-screen" class="space-y-3">
-          <!-- ランク＆ポイントカード -->
-          <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#181d2c] border border-slate-200 dark:border-slate-800 space-y-2.5">
-            <div class="flex items-center justify-between gap-2">
-              <div class="flex items-center gap-1.5">
-                <span
+          <!-- ランク＆ポイントカード（モダンHUDデザイン） -->
+          <div
+            id="rank-card-container"
+            class="relative overflow-hidden p-4 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-indigo-50/60 dark:from-[#161b2c] dark:via-[#141928] dark:to-[#1b2038] border border-slate-200/90 dark:border-indigo-500/25 shadow-lg space-y-3"
+          >
+            <!-- 背景装飾グロー -->
+            <div class="pointer-events-none absolute -top-12 -right-12 w-36 h-36 rounded-full bg-indigo-500/10 blur-2xl"></div>
+
+            <!-- 上段：ランクバッジ ＆ アクションボタン -->
+            <div class="relative flex items-center justify-between gap-2">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <button
+                  type="button"
                   id="user-rank-badge"
                   onclick="openRankRulesModal()"
-                  class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200/80 dark:bg-[#23293d] text-slate-800 dark:text-white text-xs font-black cursor-pointer"
+                  class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200/90 dark:bg-[#23293d] text-slate-800 dark:text-white text-xs font-black whitespace-nowrap shrink-0 shadow-sm hover:brightness-110 transition cursor-pointer"
                 >
                   <i class="fa-solid fa-crown text-[10px]"></i>
                   <span id="rank-name-text">ビギナー クラス5</span>
-                </span>
+                </button>
                 <button
                   type="button"
                   onclick="openRankRulesModal()"
-                  class="w-5 h-5 rounded-full bg-slate-200 dark:bg-[#23293d] text-slate-500 dark:text-slate-300 text-[10px] font-black flex items-center justify-center cursor-pointer"
+                  title="ランク仕様を見る"
+                  class="w-6 h-6 rounded-full bg-slate-200/80 dark:bg-[#23293d] hover:bg-indigo-600 hover:text-white text-slate-500 dark:text-slate-300 text-[10px] font-black flex items-center justify-center shrink-0 transition cursor-pointer"
                 >
                   ?
                 </button>
               </div>
 
-              <div class="flex items-center gap-1.5">
-                <span id="total-score-display" class="text-lg font-black text-indigo-600 dark:text-indigo-400">0 <span class="text-xs">pt</span></span>
+              <div class="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
                   onclick="openGuideModal()"
-                  class="w-5 h-5 rounded-full bg-slate-200 dark:bg-[#23293d] text-slate-500 dark:text-slate-300 text-[10px] font-black flex items-center justify-center cursor-pointer"
+                  class="px-2 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-[10px] font-black text-indigo-500 dark:text-indigo-300 flex items-center gap-1 transition cursor-pointer"
                 >
-                  ?
+                  <i class="fa-solid fa-calculator text-[9px]"></i><span>pt計算</span>
                 </button>
                 <button
                   type="button"
                   onclick="resetRankScore()"
-                  class="px-2 py-1 rounded-lg bg-slate-200/80 dark:bg-[#23293d] hover:text-rose-400 text-[10px] font-bold text-slate-500 dark:text-slate-300 flex items-center gap-1 cursor-pointer"
+                  class="px-2 py-1 rounded-lg bg-slate-200/80 dark:bg-[#23293d] hover:text-rose-400 text-[10px] font-bold text-slate-500 dark:text-slate-300 flex items-center gap-1 transition cursor-pointer"
                 >
-                  <i class="fa-solid fa-rotate-left text-[9px]"></i>初期化
+                  <i class="fa-solid fa-rotate-left text-[9px]"></i><span>初期化</span>
                 </button>
               </div>
             </div>
 
-            <div id="sync-status-badge" class="text-[11px] font-bold text-emerald-500 flex items-center gap-1.5"><i class="fa-solid fa-hard-drive"></i> ローカル保存</div>
+            <!-- 中段：メインポイント表示 ＆ 同期ステータス -->
+            <div class="relative flex items-end justify-between gap-2 pt-0.5">
+              <div>
+                <div class="text-[10px] font-extrabold tracking-wider text-slate-400 uppercase">SEASON SCORE</div>
+                <div id="total-score-display" class="text-2xl sm:text-3xl font-black tracking-tight tabular-nums text-slate-900 dark:text-white leading-none mt-0.5">
+                  0 <span class="text-xs font-extrabold text-indigo-500 dark:text-indigo-400">pt</span>
+                </div>
+              </div>
 
-            <div class="flex items-center justify-between text-[11px] font-bold">
-              <span id="season-days-left" class="text-slate-500 dark:text-slate-400">シーズン残り: --日 (12/1起点)</span>
-              <span id="next-rank-pt" class="text-indigo-500 dark:text-indigo-400 font-extrabold">あと 600 pt</span>
+              <div class="text-right space-y-1">
+                <div id="sync-status-badge" class="text-[11px] font-bold text-emerald-500 flex items-center justify-end gap-1.5"><i class="fa-solid fa-hard-drive"></i> ローカル保存</div>
+                <div id="season-days-left" class="text-[10px] font-bold text-slate-500 dark:text-slate-400">シーズン残り: --日 (12/1起点)</div>
+              </div>
             </div>
 
-            <div class="w-full h-2 bg-slate-200 dark:bg-[#23293d] rounded-full overflow-hidden">
-              <div id="rank-progress-bar" class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500" style="width: 0%"></div>
+            <!-- 下段：次クラスまでの進捗バー -->
+            <div class="relative space-y-1.5 pt-0.5">
+              <div class="flex items-center justify-between text-[11px] font-bold">
+                <span id="rank-progress-pct-text" class="text-slate-500 dark:text-slate-400 font-extrabold">次のクラスまで 0%</span>
+                <span id="next-rank-pt" class="text-indigo-600 dark:text-indigo-400 font-black tabular-nums">あと 600 pt</span>
+              </div>
+              <div class="w-full h-2.5 bg-slate-200 dark:bg-[#0e121d] rounded-full overflow-hidden p-0.5 border border-slate-300/50 dark:border-slate-800">
+                <div
+                  id="rank-progress-bar"
+                  class="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"
+                  style="width: 0%"
+                ></div>
+              </div>
             </div>
           </div>
 
@@ -146,7 +173,7 @@
             <div class="flex items-center justify-between gap-2">
               <button type="button" onclick="toggleWeeklyDetail()" class="flex items-center gap-1.5 text-xs font-black text-slate-700 dark:text-slate-200 cursor-pointer">
                 <i class="fa-regular fa-calendar text-indigo-400"></i>
-                <span>今週学んだ総単語数 (月曜〜)</span>
+                <span>学習データ詳細 (週間・累計)</span>
                 <i id="weekly-chevron" class="fa-solid fa-chevron-down text-[10px] text-slate-400 transition-transform"></i>
               </button>
               <button
@@ -158,9 +185,19 @@
                 <span>全単語辞書</span>
               </button>
             </div>
-            <div id="weekly-detail-box" class="hidden pt-1.5 border-t border-slate-200 dark:border-slate-800 flex justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
-              <span>今週の学習回答数: <strong id="weekly-learned-count" class="text-slate-800 dark:text-white">0 語</strong></span>
-              <span>今週の獲得pt: <strong id="weekly-score-display" class="text-indigo-400">0 pt</strong></span>
+            <div id="weekly-detail-box" class="hidden pt-2 border-t border-slate-200 dark:border-slate-800 grid grid-cols-3 gap-2 text-center">
+              <div class="p-2 rounded-xl bg-white dark:bg-[#121622] border border-slate-200/70 dark:border-slate-800">
+                <div class="text-[10px] font-bold text-slate-400">今週の単語数</div>
+                <strong id="weekly-learned-count" class="text-xs font-black text-slate-800 dark:text-white">0 語</strong>
+              </div>
+              <div class="p-2 rounded-xl bg-white dark:bg-[#121622] border border-slate-200/70 dark:border-slate-800">
+                <div class="text-[10px] font-bold text-slate-400">総合単語数</div>
+                <strong id="total-learned-count" class="text-xs font-black text-emerald-400">0 語</strong>
+              </div>
+              <div class="p-2 rounded-xl bg-white dark:bg-[#121622] border border-slate-200/70 dark:border-slate-800">
+                <div class="text-[10px] font-bold text-slate-400">今週の獲得pt</div>
+                <strong id="weekly-score-display" class="text-xs font-black text-indigo-400">0 pt</strong>
+              </div>
             </div>
           </div>
 
@@ -178,7 +215,7 @@
             </div>
           </div>
 
-          <!-- 3色クイックモード -->
+          <!-- 3色クイックモード（苦手特訓に統合） -->
           <div class="grid grid-cols-3 gap-2">
             <button
               type="button"
@@ -208,29 +245,33 @@
             </button>
           </div>
 
-          <div class="flex justify-end">
-            <button type="button" onclick="openSrsConfigModal()" class="text-[10px] font-bold text-slate-400 hover:text-indigo-400 flex items-center gap-1 cursor-pointer">
-              <i class="fa-solid fa-sliders"></i> SRS復習間隔をカスタム
-            </button>
-          </div>
+          <!-- 統合クイックユーティリティバー（弱点即復習＋クリア ＆ SRS間隔カスタム） -->
+          <div class="flex items-center justify-between gap-2 px-1">
+            <div class="flex items-center gap-1.5">
+              <button
+                type="button"
+                onclick="startQuickWeakReview()"
+                class="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-500 dark:text-rose-400 font-black text-[11px] flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <i class="fa-solid fa-bolt text-[10px]"></i>
+                <span id="weak-bar-label">弱点即復習 (0問)</span>
+              </button>
+              <button
+                type="button"
+                onclick="resetWeakWordsOnly()"
+                class="w-7 h-7 rounded-xl bg-slate-100 dark:bg-[#181d2c] hover:text-rose-400 border border-slate-200 dark:border-slate-800 text-slate-400 flex items-center justify-center shrink-0 transition cursor-pointer"
+                title="弱点履歴のみクリア"
+              >
+                <i class="fa-regular fa-trash-can text-[11px]"></i>
+              </button>
+            </div>
 
-          <!-- 弱点集中復習バー ＋ ゴミ箱 -->
-          <div class="flex items-center gap-2">
             <button
               type="button"
-              onclick="startQuickWeakReview()"
-              class="flex-1 py-3 px-4 rounded-2xl bg-rose-950/30 dark:bg-[#281520] hover:bg-rose-900/40 border border-rose-500/40 text-rose-500 dark:text-rose-400 font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 transition cursor-pointer"
+              onclick="openSrsConfigModal()"
+              class="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-[#181d2c] hover:text-indigo-400 border border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 flex items-center gap-1 transition cursor-pointer"
             >
-              <i class="fa-solid fa-fire"></i>
-              <span id="weak-bar-label">弱点集中復習 (0問)</span>
-            </button>
-            <button
-              type="button"
-              onclick="resetWeakWordsOnly()"
-              class="w-11 h-11 rounded-2xl bg-slate-100 dark:bg-[#181d2c] hover:text-rose-400 border border-slate-200 dark:border-slate-800 text-slate-400 flex items-center justify-center shrink-0 transition cursor-pointer"
-              title="弱点履歴のみクリア"
-            >
-              <i class="fa-regular fa-trash-can text-sm"></i>
+              <i class="fa-solid fa-sliders"></i><span>SRS間隔</span>
             </button>
           </div>
 
@@ -1284,47 +1325,83 @@
       </div>
     </div>
 
-    <!-- 9. ランキングモーダル -->
-    <div id="ranking-modal" class="hidden fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
-      <div class="w-full max-w-md bg-[#121622] rounded-3xl p-5 border border-slate-800 space-y-3 h-[82vh] flex flex-col">
+    <!-- 9. ランキングモーダル（高機能・スタイリッシュ版） -->
+    <div id="ranking-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+      <div class="w-full max-w-lg bg-[#101420] rounded-3xl p-4 sm:p-5 border border-slate-800/90 shadow-2xl space-y-3 h-[86vh] flex flex-col">
+        <!-- ヘッダー -->
         <div class="flex justify-between items-center shrink-0">
-          <h3 class="font-black text-base text-amber-400"><i class="fa-solid fa-trophy mr-1"></i>ランキング</h3>
-          <button type="button" onclick="closeRankingModal()" class="text-slate-400 cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+              <i class="fa-solid fa-trophy text-sm"></i>
+            </div>
+            <div>
+              <h3 class="font-black text-base text-white leading-tight">LEADERBOARD</h3>
+              <p class="text-[10px] font-bold text-slate-400">リアルタイム学習ランキング</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onclick="closeRankingModal()"
+            class="w-8 h-8 rounded-full bg-[#1a2033] hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer"
+          >
+            <i class="fa-solid fa-xmark text-xs"></i>
+          </button>
         </div>
+
+        <!-- ゲスト案内 -->
         <div id="ranking-guest-notice" class="hidden flex-1 flex flex-col items-center justify-center text-center space-y-3">
-          <p class="text-xs font-bold text-slate-400">ランキング参加にはログインが必要です。</p>
+          <div class="w-12 h-12 rounded-2xl bg-indigo-500/15 text-indigo-400 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-user-lock"></i>
+          </div>
+          <p class="text-xs font-bold text-slate-400">ランキング参加・閲覧にはログインが必要です。</p>
           <button
             type="button"
             onclick="
               closeRankingModal();
               openAuthModal();
             "
-            class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-black text-xs cursor-pointer"
+            class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-lg cursor-pointer"
           >
             ログインする
           </button>
         </div>
+
+        <!-- メンバーエリア -->
         <div id="ranking-member-area" class="flex-1 flex flex-col min-h-0 space-y-2.5">
+          <!-- ニックネーム設定 -->
           <form onsubmit="saveRankingNickname(event)" class="flex gap-1.5 shrink-0">
-            <input
-              type="text"
-              id="ranking-nickname-input"
-              maxlength="12"
-              placeholder="表示名 (12文字以内)"
-              class="flex-1 px-3 py-1.5 rounded-xl bg-[#181d2c] border border-slate-700 text-xs font-bold"
-            />
-            <button type="submit" class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-black text-xs cursor-pointer">保存</button>
+            <div class="relative flex-1">
+              <i class="fa-solid fa-pen text-[10px] text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
+              <input
+                type="text"
+                id="ranking-nickname-input"
+                maxlength="12"
+                placeholder="表示名を設定 (12文字以内)"
+                class="w-full pl-8 pr-3 py-2 rounded-xl bg-[#171c2c] border border-slate-700/80 focus:border-indigo-500 outline-none text-xs font-bold text-white"
+              />
+            </div>
+            <button type="submit" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shrink-0 transition cursor-pointer">保存</button>
           </form>
-          <div class="grid grid-cols-3 gap-1 bg-[#181d2c] p-1 rounded-xl text-[11px] font-black shrink-0">
-            <button type="button" id="rank-tab-all" onclick="switchRankingTab('all')" class="py-1.5 rounded-lg bg-indigo-600 text-white cursor-pointer">シーズン累計</button>
-            <button type="button" id="rank-tab-weekly" onclick="switchRankingTab('weekly')" class="py-1.5 rounded-lg text-slate-400 cursor-pointer">週間pt</button>
-            <button type="button" id="rank-tab-score_attack" onclick="switchRankingTab('score_attack')" class="py-1.5 rounded-lg text-slate-400 cursor-pointer">スコアアタック</button>
+
+          <!-- タブ切替 -->
+          <div class="grid grid-cols-3 gap-1 bg-[#171c2c] p-1 rounded-xl border border-slate-800/80 text-[11px] font-black shrink-0">
+            <button type="button" id="rank-tab-all" onclick="switchRankingTab('all')" class="py-1.5 rounded-lg bg-indigo-600 text-white shadow-sm transition cursor-pointer">シーズン累計</button>
+            <button type="button" id="rank-tab-weekly" onclick="switchRankingTab('weekly')" class="py-1.5 rounded-lg text-slate-400 hover:text-white transition cursor-pointer">週間pt</button>
+            <button type="button" id="rank-tab-score_attack" onclick="switchRankingTab('score_attack')" class="py-1.5 rounded-lg text-slate-400 hover:text-white transition cursor-pointer">
+              スコアアタック
+            </button>
           </div>
-          <div class="flex justify-between text-[10px] font-bold text-slate-400 shrink-0">
-            <span id="ranking-count-label">参加: -- 名</span>
-            <button type="button" onclick="loadLeaderboard()" class="text-indigo-400 cursor-pointer">更新</button>
+
+          <!-- 参加者数 ＆ 更新 -->
+          <div class="flex justify-between items-center text-[10px] font-bold text-slate-400 px-1 shrink-0">
+            <span id="ranking-count-label" class="flex items-center gap-1.5"> <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>参加: -- 名 </span>
+            <button type="button" onclick="loadLeaderboard()" class="text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer">
+              <i class="fa-solid fa-arrows-rotate text-[9px]"></i>最新に更新
+            </button>
           </div>
-          <div id="leaderboard-list" class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1"></div>
+
+          <!-- リスト本体 -->
+          <div id="leaderboard-list" class="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1"></div>
         </div>
       </div>
     </div>

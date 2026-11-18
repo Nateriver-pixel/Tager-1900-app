@@ -227,3 +227,64 @@ input[type="number"],
 select {
   font-size: 16px !important;
 }
+/* ===== 正解・不正解の視覚エフェクト強化 ===== */
+@keyframes correct-pop {
+  0% {
+    transform: scale(0.95);
+  }
+  45% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-correct-pop {
+  animation: correct-pop 0.32s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes wrong-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  15% {
+    transform: translateX(-8px);
+  }
+  30% {
+    transform: translateX(8px);
+  }
+  45% {
+    transform: translateX(-6px);
+  }
+  60% {
+    transform: translateX(6px);
+  }
+  75% {
+    transform: translateX(-3px);
+  }
+  90% {
+    transform: translateX(3px);
+  }
+}
+
+.animate-wrong-shake {
+  animation: wrong-shake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes screen-damage-flash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.75);
+    border-color: rgba(244, 63, 94, 0.9);
+  }
+  100% {
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.animate-screen-damage {
+  animation:
+    wrong-shake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97),
+    screen-damage-flash 0.55s ease-out;
+}
