@@ -1738,11 +1738,8 @@ function evaluateAnswer(isCorrect, userAnswer, elapsedSec) {
   }
 
   session.answeredMap[session.currentIndex] = { isCorrect, userAnswer, earnedPt, ptDetail, correctDisplay };
-  saveState(true);
 
-  const autoSpeech = document.getElementById("auto-speech-toggle")?.checked ?? true;
-  if (!isEnToJa && autoSpeech) playSpeech(word.word);
-
+  // 1. まず見た目・スコア・選択肢の色だけを即座に更新（体感ラグ0ms）
   updateComboBadge();
   const scoreText = document.getElementById("score-text");
   if (scoreText) scoreText.textContent = `SCORE: ${session.score.toLocaleString()}`;
@@ -1759,7 +1756,15 @@ function evaluateAnswer(isCorrect, userAnswer, elapsedSec) {
 
   const delayMs = session.type === "score_attack" ? 400 : isCorrect ? 2000 : 3000;
   startAutoNextCountdown(delayMs);
+
+  // 2. 画面が描画された直後に、データ保存・クラウド同期・音声読み上げを裏で実行
+  setTimeout(() => {
+    saveState(true);
+    const autoSpeech = document.getElementById("auto-speech-toggle")?.checked ?? true;
+    if (!isEnToJa && autoSpeech) playSpeech(word.word);
+  }, 30);
 }
+
 function updateComboBadge() {
   const badge = document.getElementById("combo-badge");
   const countEl = document.getElementById("combo-count");
