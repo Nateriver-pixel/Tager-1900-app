@@ -16857,7 +16857,7 @@ function renderSynonymsPanels(word) {
     <div class="pt-2 mt-2 border-t border-slate-800 flex gap-1.5" onclick="event.stopPropagation()">
       <button type="button"
               data-url="${weblioUrl}"
-              onclick="event.stopPropagation(); window.open(this.dataset.url, '_blank', 'noopener,noreferrer')"
+              onclick="event.stopPropagation(); if (typeof togglePause === 'function') togglePause(); window.open(this.dataset.url, '_blank', 'noopener,noreferrer')"
               class="inline-flex items-center px-2.5 py-1 rounded-lg bg-indigo-950 hover:bg-indigo-900 text-indigo-300 text-[10px] font-bold cursor-pointer">
         <i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Weblioで詳細
       </button>
