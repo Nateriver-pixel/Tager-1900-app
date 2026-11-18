@@ -569,7 +569,7 @@ function renderAnalyticsGraph() {
       let masteredCount = 0;
       for (const w of blockWords) {
         const st = appState.wordStats[w.no];
-        if (st && (st.mastered || (st.correct || 0) >= 2)) masteredCount++;
+        if (st && st.mastered) masteredCount++;
       }
       pct = Math.round((masteredCount / denom) * 100);
       labelRight = `${masteredCount}/${denom}語 (${pct}%)`;
@@ -918,6 +918,7 @@ function selectQuizOrder(order) {
 
 function updateOrderUI() {
   const badge = document.getElementById("order-progress-badge");
+  const resetBtn = document.getElementById("reset-coverage-btn");
   if (!badge) return;
   const { start, end } = getNormalizedRange("range-start", "range-end");
   const rangeKey = `${start}-${end}`;
@@ -928,13 +929,26 @@ function updateOrderUI() {
     const validCovered = rangeWords.filter((w) => covered.has(w.no)).length;
     badge.textContent = `網羅済: ${validCovered}/${rangeWords.length}語`;
     badge.classList.remove("hidden");
+    if (resetBtn) resetBtn.classList.remove("hidden");
   } else if (quizConfig.order === "weak_pool") {
     const weakCount = getFilteredReviewWords("all_weak", start, end).length;
     badge.textContent = `弱点: ${weakCount}語`;
     badge.classList.remove("hidden");
+    if (resetBtn) resetBtn.classList.add("hidden");
   } else {
     badge.classList.add("hidden");
+    if (resetBtn) resetBtn.classList.add("hidden");
   }
+}
+
+// ▼▼▼ ここから挿入 ▼▼▼
+function resetCurrentRangeCoverage() {
+  const { start, end } = getNormalizedRange("range-start", "range-end");
+  const rangeKey = `${start}-${end}`;
+  if (!confirm(`No.${start}〜${end} の網羅進捗をリセットしますか？`)) return;
+  appState.coveredMap[rangeKey] = [];
+  saveState(true);
+  updateOrderUI();
 }
 
 function selectQuizMode(mode) {
@@ -1749,12 +1763,16 @@ function renderSynonymsPanels(word) {
   const sideList = document.getElementById("synonyms-side-list");
   const mobileList = document.getElementById("synonyms-list");
   const encoded = encodeURIComponent(word.word || "");
+  const weblioUrl = "https:" + "/" + "/ejje.weblio.jp/content/" + encoded;
 
   const weblioLink = `
-    <div class="pt-2 mt-2 border-t border-slate-800 flex gap-1.5">
-      <a href="https://ejje.weblio.jp/content/${encoded}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 rounded-lg bg-indigo-950 text-indigo-300 text-[10px] font-bold">
+    <div class="pt-2 mt-2 border-t border-slate-800 flex gap-1.5" onclick="event.stopPropagation()">
+      <button type="button"
+              data-url="${weblioUrl}"
+              onclick="event.stopPropagation(); window.open(this.dataset.url, '_blank', 'noopener,noreferrer')"
+              class="inline-flex items-center px-2.5 py-1 rounded-lg bg-indigo-950 hover:bg-indigo-900 text-indigo-300 text-[10px] font-bold cursor-pointer">
         <i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Weblioで詳細
-      </a>
+      </button>
     </div>
   `;
 
