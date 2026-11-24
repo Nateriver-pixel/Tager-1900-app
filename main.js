@@ -2451,7 +2451,8 @@ async function submitEmailAuth(event) {
 
 async function logoutFirebase() {
   if (auth) await auth.signOut();
-  closeAuthModal();
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
 }
 
 async function manualSyncNow() {
@@ -2464,6 +2465,19 @@ async function manualSyncNow() {
 
 async function pullFromFirestore() {
   if (!currentUser || !db) return;
+  // 別アカウントのローカルデータが残っていた場合はリセットしてから読み込む
+  if (appState.ownerUid && appState.ownerUid !== currentUser.uid) {
+    localStorage.removeItem(STORAGE_KEY);
+    appState.totalScore = 0;
+    appState.weeklyScore = 0;
+    appState.weeklyLearnedCount = 0;
+    appState.totalLearnedCount = 0;
+    appState.saPersonalBest = 0;
+    appState.wordStats = {};
+    appState.coveredMap = {};
+    appState.coveredLapMap = {};
+  }
+  appState.ownerUid = currentUser.uid;
   try {
     const doc = await db.collection("users").doc(currentUser.uid).get();
     if (!doc.exists) return;
