@@ -272,6 +272,8 @@ function loadState() {
   }
 }
 
+let cloudSyncTimer = null;
+
 function saveState(syncCloud = true) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
@@ -279,9 +281,29 @@ function saveState(syncCloud = true) {
     console.warn("保存エラー:", e);
   }
   if (syncCloud && currentUser && db) {
-    syncToFirestore().catch(() => {});
+    clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = setTimeout(() => {
+      syncToFirestore().catch(() => {});
+    }, 1500);
   }
 }
+
+// ページを閉じる・別アプリへ切り替える直前に未送信分を即同期
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && cloudSyncTimer && currentUser && db) {
+    clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = null;
+    syncToFirestore().catch(() => {});
+  }
+});
+
+// 別タブでの更新を即座にメモリへ反映
+window.addEventListener("storage", (e) => {
+  if (e.key === STORAGE_KEY && e.newValue) {
+    loadState();
+    updateDashboardUI();
+  }
+});
 
 function getTodayDateKey(now = new Date()) {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -659,14 +681,27 @@ function resetWeakWordsOnly() {
   updateDashboardUI();
 }
 
-function resetStatsData() {
+async function resetStatsData() {
   if (!confirm("すべての単語習得履歴・SRS予定・網羅進捗をリセットしますか？")) return;
   appState.wordStats = {};
   appState.coveredMap = {};
-  saveState(true);
+  appState.coveredLapMap = {};
+  saveState(false);
   updateDashboardUI();
   updateOrderUI();
   updateReviewTargetPreview();
+
+  if (currentUser && db) {
+    await db
+      .collection("users")
+      .doc(currentUser.uid)
+      .update({
+        wordStats: {},
+        coveredMap: {},
+        coveredLapMap: {},
+      })
+      .catch(() => {});
+  }
 }
 
 // 画面遷移・テーマ・表示切替
@@ -2450,9 +2485,25 @@ async function submitEmailAuth(event) {
 }
 
 async function logoutFirebase() {
+  clearTimeout(cloudSyncTimer);
   if (auth) await auth.signOut();
   localStorage.removeItem(STORAGE_KEY);
-  location.reload();
+  appState.ownerUid = "";
+  appState.totalScore = 0;
+  appState.carriedCombo = 0;
+  appState.weeklyScore = 0;
+  appState.weeklyLearnedCount = 0;
+  appState.totalLearnedCount = 0;
+  appState.dailyCount = 0;
+  appState.streakDays = 1;
+  appState.saPersonalBest = 0;
+  appState.nickname = "";
+  appState.wordStats = {};
+  appState.coveredMap = {};
+  appState.coveredLapMap = {};
+  updateAuthHeaderUI();
+  showStartScreen();
+  closeAuthModal();
 }
 
 async function manualSyncNow() {
@@ -2491,6 +2542,21 @@ async function pullFromFirestore() {
     appState.saPersonalBest = Math.max(appState.saPersonalBest || 0, d.saPersonalBest || 0);
     if (!appState.nickname && d.nickname) appState.nickname = d.nickname;
 
+    if (d.dailyKey === appState.dailyKey) {
+      appState.dailyCount = Math.max(appState.dailyCount || 0, d.dailyCount || 0);
+    }
+    if (typeof d.dailyQuota === "number") appState.dailyQuota = d.dailyQuota;
+    if (typeof d.streakDays === "number") appState.streakDays = Math.max(appState.streakDays || 1, d.streakDays);
+    if (d.lastStudyDate && d.lastStudyDate > (appState.lastStudyDate || "")) {
+      appState.lastStudyDate = d.lastStudyDate;
+    }
+    if (typeof d.darkMode === "boolean") appState.darkMode = d.darkMode;
+    if (typeof d.soundEnabled === "boolean") appState.soundEnabled = d.soundEnabled;
+    if (typeof d.showKana === "boolean") appState.showKana = d.showKana;
+    if (typeof d.deviceViewMode === "string") appState.deviceViewMode = d.deviceViewMode;
+    if (typeof d.statsDisplayMode === "string") appState.statsDisplayMode = d.statsDisplayMode;
+    if (Array.isArray(d.srsIntervals) && d.srsIntervals.length > 0) appState.srsIntervals = d.srsIntervals;
+
     if (d.wordStats) {
       for (const [no, rSt] of Object.entries(d.wordStats)) {
         const lSt = getWordStat(no);
@@ -2517,27 +2583,48 @@ async function syncToFirestore() {
   const totalWords = Math.max(appState.totalLearnedCount || 0, computeTotalAnswersFromStats(appState.wordStats));
   appState.totalLearnedCount = totalWords;
 
-  await db
-    .collection("users")
-    .doc(currentUser.uid)
-    .set(
-      {
-        uid: currentUser.uid,
-        nickname: nick,
-        rankName: rank.fullName,
-        totalScore: appState.totalScore,
-        seasonKey: appState.seasonKey,
-        weeklyKey: appState.weeklyKey,
-        weeklyScore: appState.weeklyScore || 0,
-        weeklyLearnedCount: appState.weeklyLearnedCount || 0,
-        totalLearnedCount: totalWords,
-        saPersonalBest: appState.saPersonalBest || 0,
-        wordStats: appState.wordStats,
-        lastLoginAt: Date.now(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true },
-    );
+  const publicRankingData = {
+    uid: currentUser.uid,
+    nickname: nick,
+    rankName: rank.fullName,
+    totalScore: appState.totalScore,
+    seasonKey: appState.seasonKey,
+    weeklyKey: appState.weeklyKey,
+    weeklyScore: appState.weeklyScore || 0,
+    weeklyLearnedCount: appState.weeklyLearnedCount || 0,
+    totalLearnedCount: totalWords,
+    saPersonalBest: appState.saPersonalBest || 0,
+    lastLoginAt: nextLoginTs,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+
+  await Promise.all([
+    db
+      .collection("users")
+      .doc(currentUser.uid)
+      .set(
+        {
+          ...publicRankingData,
+          dailyKey: appState.dailyKey || "",
+          dailyCount: appState.dailyCount || 0,
+          dailyQuota: appState.dailyQuota || 30,
+          streakDays: appState.streakDays || 1,
+          lastStudyDate: appState.lastStudyDate || "",
+          darkMode: appState.darkMode !== false,
+          soundEnabled: appState.soundEnabled !== false,
+          showKana: !!appState.showKana,
+          deviceViewMode: appState.deviceViewMode || "auto",
+          statsDisplayMode: appState.statsDisplayMode || "mastery",
+          srsIntervals: Array.isArray(appState.srsIntervals) ? appState.srsIntervals : [1, 3, 7, 14, 30],
+          wordStats: appState.wordStats,
+          coveredMap: appState.coveredMap || {},
+          coveredLapMap: appState.coveredLapMap || {},
+          hideLastLoginUntil: appState.hideLastLoginUntil || 0,
+        },
+        { merge: true },
+      ),
+    db.collection("leaderboard").doc(currentUser.uid).set(publicRankingData, { merge: true }),
+  ]);
 }
 
 function formatLastLogin(lastLoginAt, updatedAt) {
@@ -2618,7 +2705,7 @@ async function loadLeaderboard() {
 
   listEl.innerHTML = `<p class="text-xs text-slate-400 text-center py-8 font-bold"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>ランキングを読み込み中...</p>`;
   try {
-    const snap = await db.collection("users").limit(50).get();
+    const snap = await db.collection("leaderboard").limit(100).get();
     const curSeason = getSeasonInfo().seasonKey;
     const curWeek = getMondayWeekKey();
     const rows = [];
@@ -2628,9 +2715,8 @@ async function loadLeaderboard() {
       const seasonScore = d.seasonKey === curSeason ? d.totalScore || 0 : 0;
       const weeklyScore = d.weeklyKey === curWeek ? d.weeklyScore || 0 : 0;
       const weeklyWords = d.weeklyKey === curWeek ? d.weeklyLearnedCount || 0 : 0;
-      const totalWords = Math.max(d.totalLearnedCount || 0, computeTotalAnswersFromStats(d.wordStats));
+      const totalWords = d.totalLearnedCount || 0;
       const dynamicRank = getRankDetails(seasonScore).fullName;
-
       let metric = 0;
       if (session.currentRankingTab === "all") metric = seasonScore;
       else if (session.currentRankingTab === "weekly") metric = weeklyScore;
