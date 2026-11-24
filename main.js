@@ -2533,7 +2533,9 @@ async function pullFromFirestore() {
     const doc = await db.collection("users").doc(currentUser.uid).get();
     if (!doc.exists) return;
     const d = doc.data();
-    if (d.seasonKey === appState.seasonKey) appState.totalScore = Math.max(appState.totalScore, d.totalScore || 0);
+    if (!d.seasonKey || d.seasonKey === appState.seasonKey) {
+      appState.totalScore = Math.max(appState.totalScore, d.totalScore || 0);
+    }
     if (d.weeklyKey === appState.weeklyKey) {
       appState.weeklyScore = Math.max(appState.weeklyScore || 0, d.weeklyScore || 0);
       appState.weeklyLearnedCount = Math.max(appState.weeklyLearnedCount || 0, d.weeklyLearnedCount || 0);
@@ -2573,6 +2575,7 @@ async function pullFromFirestore() {
     saveState(false);
     updateDashboardUI();
     updateAuthHeaderUI();
+    syncToFirestore().catch((e) => console.error("自動移行同期エラー:", e));
   } catch {}
 }
 
