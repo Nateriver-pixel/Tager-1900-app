@@ -17933,17 +17933,30 @@ async function loadLeaderboard() {
 
   listEl.innerHTML = `<p class="text-xs text-slate-400 text-center py-8 font-bold"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>ランキングを読み込み中...</p>`;
   try {
-    const snap = await db.collection("leaderboard").limit(100).get();
+    // 新leaderboardと旧usersの両方を並列取得し、未移行ユーザーも自動で補完する
+    const [lbSnap, userSnap] = await Promise.all([
+      db.collection("leaderboard").limit(100).get(),
+      db
+        .collection("users")
+        .limit(100)
+        .get()
+        .catch(() => ({ forEach: () => {} })),
+    ]);
+
+    const mergedMap = new Map();
+    userSnap.forEach((doc) => mergedMap.set(doc.id, doc.data()));
+    lbSnap.forEach((doc) => mergedMap.set(doc.id, doc.data()));
+
     const curSeason = getSeasonInfo().seasonKey;
     const curWeek = getMondayWeekKey();
     const rows = [];
 
-    snap.forEach((doc) => {
-      const d = doc.data();
-      const seasonScore = d.seasonKey === curSeason ? d.totalScore || 0 : 0;
+    mergedMap.forEach((d, docId) => {
+      const seasonScore = !d.seasonKey || d.seasonKey === curSeason ? d.totalScore || 0 : 0;
       const weeklyScore = d.weeklyKey === curWeek ? d.weeklyScore || 0 : 0;
       const weeklyWords = d.weeklyKey === curWeek ? d.weeklyLearnedCount || 0 : 0;
-      const totalWords = d.totalLearnedCount || 0;
+      const statsWords = typeof computeTotalAnswersFromStats === "function" ? computeTotalAnswersFromStats(d.wordStats) : 0;
+      const totalWords = Math.max(d.totalLearnedCount || 0, statsWords);
       const dynamicRank = getRankDetails(seasonScore).fullName;
       let metric = 0;
       if (session.currentRankingTab === "all") metric = seasonScore;
@@ -17951,7 +17964,7 @@ async function loadLeaderboard() {
       else metric = d.saPersonalBest || 0;
 
       rows.push({
-        uid: doc.id,
+        uid: d.uid || docId,
         nickname: d.nickname || "名無し",
         rankName: dynamicRank,
         metric,
