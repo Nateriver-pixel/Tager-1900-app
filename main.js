@@ -2582,7 +2582,9 @@ async function syncToFirestore() {
   const rank = getRankDetails(appState.totalScore);
   const totalWords = Math.max(appState.totalLearnedCount || 0, computeTotalAnswersFromStats(appState.wordStats));
   appState.totalLearnedCount = totalWords;
-
+  const isStealthActive = Date.now() < (appState.hideLastLoginUntil || 0);
+  const nextLoginTs = isStealthActive ? appState.lastKnownLoginAt || Date.now() : Date.now();
+  if (!isStealthActive) appState.lastKnownLoginAt = nextLoginTs;
   const publicRankingData = {
     uid: currentUser.uid,
     nickname: nick,
